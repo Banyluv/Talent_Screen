@@ -1,0 +1,150 @@
+# ECEWS TalentScreen — full stack on Docker Compose
+#
+#   cp .env.example .env && ./scripts/init-env.sh   # generates secrets
+#   docker compose up -d --build
+#   open http://localhost:8080
+#
+# Services: postgres (data + job queue), migrate (one-shot schema/seed), api (REST),
+#           worker (CV evaluation, retention), web (React + nginx reverse proxy).
+# CV files are encrypted and kept on the "uploads" volume by default (STORAGE_DRIVER=local).
+# Optional S3-compatible storage: set STORAGE_DRIVER=s3 and run with --profile s3 (MinIO),
+# or point S3_ENDPOINT at your own S3 / Azure Blob (STORAGE_DRIVER=azure) instead.
+
+name: talentscreen
+
+x-app-env: &app-env
+  NODE_ENV: production
+  DATABASE_URL: postgres://${POSTGRES_USER:-talentscreen}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-talentscreen}
+  PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+  CORS_ORIGINS: ${PUBLIC_URL:-http://localhost:8080}
+  JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+  DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?set DATA_ENCRYPTION_KEY in .env}
+  ORGANISATION_NAME: ${ORGANISATION_NAME:-Excellence Community Education Welfare Scheme (ECEWS)}
+  BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@ecews.local}
+  BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-}
+  BOOTSTRAP_ADMIN_NAME: ${BOOTSTRAP_ADMIN_NAME:-System Administrator}
+  SEED_DEMO_DATA: ${SEED_DEMO_DATA:-false}
+  DEMO_USER_PASSWORD: ${DEMO_USER_PASSWORD:-}
+  LOCAL_LOGIN_ENABLED: ${LOCAL_LOGIN_ENABLED:-true}
+  OIDC_ENABLED: ${OIDC_ENABLED:-false}
+  OIDC_DISPLAY_NAME: ${OIDC_DISPLAY_NAME:-Microsoft Entra ID}
+  OIDC_ISSUER: ${OIDC_ISSUER:-}
+  OIDC_CLIENT_ID: ${OIDC_CLIENT_ID:-}
+  OIDC_CLIENT_SECRET: ${OIDC_CLIENT_SECRET:-}
+  OIDC_REDIRECT_URI: ${PUBLIC_URL:-http://localhost:8080}/api/auth/oidc/callback
+  OIDC_DEFAULT_ROLE: ${OIDC_DEFAULT_ROLE:-viewer}
+  OIDC_AUTO_PROVISION: ${OIDC_AUTO_PROVISION:-true}
+  STORAGE_DRIVER: ${STORAGE_DRIVER:-local}       # local = 'uploads' volume; s3 = MinIO (--profile s3) or any S3
+  S3_ENDPOINT: ${S3_ENDPOINT:-http://minio:9000}
+  S3_BUCKET: ${S3_BUCKET:-talentscreen-cvs}
+  S3_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-talentscreen}
+  S3_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-}
+  S3_FORCE_PATH_STYLE: "true"
+  MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-10}
+  MAX_BULK_FILES: ${MAX_BULK_FILES:-50}
+  AZURE_OPENAI_ENDPOINT: ${AZURE_OPENAI_ENDPOINT:-}
+  AZURE_OPENAI_API_KEY: ${AZURE_OPENAI_API_KEY:-}
+  AZURE_OPENAI_DEPLOYMENT: ${AZURE_OPENAI_DEPLOYMENT:-}
+  AZURE_OPENAI_API_VERSION: ${AZURE_OPENAI_API_VERSION:-2024-10-21}
+  OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+  OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+  SMTP_HOST: ${SMTP_HOST:-}
+  SMTP_PORT: ${SMTP_PORT:-587}
+  SMTP_USER: ${SMTP_USER:-}
+  SMTP_PASS: ${SMTP_PASS:-}
+  SMTP_FROM: ${SMTP_FROM:-TalentScreen <no-reply@ecews.org>}
+  WORKER_CONCURRENCY: ${WORKER_CONCURRENCY:-2}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-talentscreen}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-talentscreen}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+
+  minio:
+    # Optional. MinIO no longer publishes free images on Docker Hub; use a mirror you trust
+    # (MINIO_IMAGE in .env) or skip it and keep STORAGE_DRIVER=local.
+    profiles: [s3]
+    image: ${MINIO_IMAGE:-quay.io/minio/minio:RELEASE.2025-04-22T22-12-26Z}
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER:-talentscreen}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-change-me-please}
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    networks: [backend]
+    # MinIO console for administrators, bound to localhost only:
+    ports:
+      - "127.0.0.1:9001:9001"
+
+  migrate:
+    build: ./apps/api
+    image: ${REGISTRY:-ecews}/talentscreen-api:${TAG:-latest}
+    command: ["node", "dist/migrate.js"]
+    environment: *app-env
+    volumes: [uploads:/data/uploads]
+    depends_on:
+      postgres: { condition: service_healthy }
+    networks: [backend]
+    restart: "no"
+
+  api:
+    build: ./apps/api                 # same image as migrate; the build is cached
+    image: ${REGISTRY:-ecews}/talentscreen-api:${TAG:-latest}
+    restart: unless-stopped
+    environment: *app-env
+    volumes: [uploads:/data/uploads]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [backend, frontend]
+
+  worker:
+    build: ./apps/api
+    image: ${REGISTRY:-ecews}/talentscreen-api:${TAG:-latest}
+    restart: unless-stopped
+    command: ["node", "dist/worker.js"]
+    environment: *app-env
+    volumes: [uploads:/data/uploads]
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+    networks: [backend]
+    healthcheck:
+      disable: true
+    deploy:
+      replicas: ${WORKER_REPLICAS:-1}
+
+  web:
+    build: ./apps/web
+    image: ${REGISTRY:-ecews}/talentscreen-web:${TAG:-latest}
+    restart: unless-stopped
+    depends_on:
+      api: { condition: service_healthy }
+    ports:
+      - "${WEB_PORT:-8080}:8080"
+    networks: [frontend]
+
+volumes:
+  pgdata:
+  miniodata:
+  uploads:
+
+networks:
+  backend:
+  frontend:

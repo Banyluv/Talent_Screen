@@ -1,0 +1,14 @@
+SAMPLE CV — FICTITIOUS PERSON FOR DEMONSTRATION
+Tolu Bankole
+Ibadan, Nigeria | tolu.bankole@example.com | 0706 555 0102
+SUMMARY
+Helpdesk analyst who enjoys solving user problems and learning cloud technologies.
+EXPERIENCE
+IT Helpdesk Analyst — Prime Retail Stores | Jan 2024 – Present
+Resolved first-line tickets, reset passwords in Active Directory and supported Microsoft 365 apps.
+IT Intern — Lagos State Polytechnic ICT Unit | Jun 2022 – Dec 2023
+Imaged laptops and maintained printers and the campus network.
+EDUCATION
+HND Computer Science — Lagos State Polytechnic, 2022
+CERTIFICATIONS
+CompTIA A+

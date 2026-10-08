@@ -1,0 +1,17 @@
+SAMPLE CV — FICTITIOUS PERSON FOR DEMONSTRATION
+Grace Udoh
+Uyo, Akwa Ibom | grace.udoh@example.com | 0809 555 0163
+PROFILE
+Infrastructure officer with seven years supporting on-premises Microsoft environments in the NGO sector, with strong communication and team collaboration.
+EXPERIENCE
+Senior IT Officer — Coastal Health Initiative (Global Fund) | May 2020 – Present
+Manage Windows Server 2019, Active Directory and Group Policy for 300 users.
+Administer Microsoft 365, SharePoint and Teams; introduced Veeam backup and documented DR procedures.
+IT Officer — Akwa Ibom Community Trust | Mar 2017 – Apr 2020
+Supported LAN, printers and Office 365 licensing; trained staff on email security.
+IT Assistant — Uyo City Polytechnic | Sep 2015 – Feb 2017
+Helpdesk and lab maintenance.
+EDUCATION
+BEng Electrical/Electronic Engineering — University of Uyo, 2014
+CERTIFICATIONS
+ITIL 4 Foundation

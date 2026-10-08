@@ -1,0 +1,131 @@
+[
+  {
+    "key": "it",
+    "ref": "DEMO-2026-001",
+    "title": "Senior Systems Administrator (Azure & M365)",
+    "department": "Information Technology",
+    "location": "Lagos (hybrid)",
+    "type": "Full-time",
+    "description": "Own ECEWS's Microsoft 365 tenant, Azure workloads and site infrastructure across state offices.",
+    "requirements": {
+      "minQualificationLevel": 3,
+      "fieldsOfStudy": [
+        "computer science",
+        "information technology",
+        "computer engineering",
+        "electrical"
+      ],
+      "requiredQualifications": [
+        "BSc/HND in Computer Science or related"
+      ],
+      "preferredQualifications": [
+        "MSc Information Technology"
+      ],
+      "requiredCertifications": [
+        "Azure Administrator (AZ-104)",
+        "Microsoft 365 Administrator (MS-102)",
+        "CCNA",
+        "ITIL"
+      ],
+      "technicalSkills": [
+        "Microsoft 365",
+        "Azure",
+        "Active Directory",
+        "Intune",
+        "PowerShell",
+        "Windows Server",
+        "Networking",
+        "Microsoft Defender"
+      ],
+      "softSkills": [
+        "Communication",
+        "Leadership",
+        "Problem solving"
+      ],
+      "preferredSkills": [
+        "UniFi",
+        "Backup",
+        "SharePoint"
+      ],
+      "minYears": 5,
+      "preferredYears": 8,
+      "industryExperience": [
+        "NGO",
+        "Public health"
+      ],
+      "locationRequirements": "Lagos, with travel to state offices",
+      "mandatory": [
+        "Microsoft 365",
+        "Azure"
+      ],
+      "niceToHave": [
+        "Xcitium"
+      ]
+    },
+    "cvs": [
+      "chidinma-okafor.txt",
+      "ibrahim-musa.txt",
+      "tolu-bankole.txt",
+      "grace-udoh.txt"
+    ]
+  },
+  {
+    "key": "me",
+    "ref": "DEMO-2026-002",
+    "title": "Monitoring & Evaluation Officer",
+    "department": "Strategic Information",
+    "location": "Uyo, Akwa Ibom",
+    "type": "Full-time",
+    "description": "Lead routine HIV programme reporting, data quality assessments and dashboards for supported facilities.",
+    "requirements": {
+      "minQualificationLevel": 3,
+      "fieldsOfStudy": [
+        "statistics",
+        "public health",
+        "epidemiology",
+        "economics",
+        "demography"
+      ],
+      "requiredQualifications": [],
+      "preferredQualifications": [
+        "MPH"
+      ],
+      "requiredCertifications": [
+        "Power BI Data Analyst (PL-300)"
+      ],
+      "technicalSkills": [
+        "DHIS2",
+        "Excel",
+        "Power BI",
+        "Data quality assessment",
+        "KoboToolbox",
+        "Report writing"
+      ],
+      "softSkills": [
+        "Communication",
+        "Attention to detail",
+        "Teamwork"
+      ],
+      "preferredSkills": [
+        "Stata / SPSS",
+        "DATIM"
+      ],
+      "minYears": 3,
+      "preferredYears": 5,
+      "industryExperience": [
+        "Public health",
+        "NGO"
+      ],
+      "locationRequirements": "Uyo",
+      "mandatory": [
+        "DHIS2"
+      ],
+      "niceToHave": []
+    },
+    "cvs": [
+      "amaka-eze.txt",
+      "samuel-etim.txt",
+      "blessing-akpan.txt"
+    ]
+  }
+]

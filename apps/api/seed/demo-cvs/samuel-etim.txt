@@ -1,0 +1,12 @@
+SAMPLE CV — FICTITIOUS PERSON FOR DEMONSTRATION
+Samuel Etim
+Calabar, Nigeria | samuel.etim@example.com | 0815 555 0190
+SUMMARY
+Data analyst with field survey experience and a keen eye for accuracy.
+EXPERIENCE
+Data Analyst — Cross River Research Consult | Mar 2022 – Present
+Designed KoboToolbox forms for household surveys; analysed data in SPSS and Excel; wrote survey reports for clients.
+Data Officer — Calabar Maternal Health Project | Jan 2021 – Feb 2022
+Entered facility data into DHIS2 and checked data quality before monthly submissions.
+EDUCATION
+BSc Statistics — University of Calabar, 2020

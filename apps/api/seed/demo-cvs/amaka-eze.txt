@@ -1,0 +1,17 @@
+SAMPLE CV — FICTITIOUS PERSON FOR DEMONSTRATION
+Amaka Eze
+Enugu, Nigeria | amaka.eze@example.com | 0813 555 0129
+PROFESSIONAL SUMMARY
+Monitoring and evaluation officer with five years on PEPFAR HIV programmes, specialising in DHIS2 reporting, data quality assessment and Power BI dashboards.
+EXPERIENCE
+M&E Officer — LifeLine Health Services (PEPFAR) | Feb 2022 – Present
+Led monthly DHIS2 and DATIM reporting for 42 facilities; conducted quarterly data quality assessments (DQA).
+Built Power BI dashboards tracking HIV testing and treatment targets; presented findings to state stakeholders.
+Supervised five data clerks and trained facility staff on KoboToolbox collection.
+Assistant M&E Officer — Enugu HIV Response Project | Jul 2019 – Jan 2022
+Cleaned and analysed programme data in Excel and Stata; drafted quarterly donor reports.
+EDUCATION
+MPH Epidemiology — University of Nigeria, Nsukka, 2019
+BSc Statistics — University of Nigeria, Nsukka, 2016
+CERTIFICATIONS
+Microsoft Certified: Power BI Data Analyst Associate (PL-300)

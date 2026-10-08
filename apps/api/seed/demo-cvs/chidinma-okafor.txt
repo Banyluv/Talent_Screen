@@ -1,0 +1,23 @@
+SAMPLE CV — FICTITIOUS PERSON FOR DEMONSTRATION
+Chidinma Okafor
+Lagos, Nigeria | chidinma.okafor@example.com | 0803 555 0141
+PROFESSIONAL SUMMARY
+Systems administrator with ten years running Microsoft 365, Azure and hybrid Active Directory estates for donor-funded health programmes. Led a team of six IT officers across 14 state offices.
+EXPERIENCE
+IT Manager — HealthReach Nigeria (USAID implementing partner) | Mar 2021 – Present
+Led migration of 900 mailboxes to Exchange Online and rolled out Intune for 650 laptops.
+Hardened tenant with Microsoft Defender for Endpoint and conditional access in Entra ID.
+Automated user onboarding with PowerShell; managed Azure VMs and backup with Azure Backup.
+Supervised and mentored six IT officers; presented quarterly IT reports to country leadership.
+Senior Systems Administrator — CareBridge Foundation (PEPFAR) | Jan 2018 – Feb 2021
+Administered Windows Server 2016/2019, DNS, DHCP and file services across 9 sites.
+Designed site networks with Ubiquiti UniFi, VLANs and site-to-site VPN; resolved recurring outages through root cause analysis.
+Systems Administrator — Wellspring Clinics | Jun 2016 – Dec 2017
+Maintained Active Directory, SharePoint intranet and helpdesk queue.
+EDUCATION
+MSc Information Technology — University of Lagos, 2016
+BSc Computer Science — Obafemi Awolowo University, 2013
+CERTIFICATIONS
+Microsoft Certified: Azure Administrator Associate (AZ-104)
+Microsoft 365 Certified: Administrator Expert (MS-102)
+ITIL 4 Foundation

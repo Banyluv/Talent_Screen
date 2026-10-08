@@ -1,0 +1,19 @@
+SAMPLE CV — FICTITIOUS PERSON FOR DEMONSTRATION
+Ibrahim Musa
+Abuja, Nigeria | ibrahim.musa@example.com | 0812 555 0177
+PROFESSIONAL SUMMARY
+Network and cloud engineer focused on Azure infrastructure, routing and firewall security for multi-site organisations.
+WORK EXPERIENCE
+Network & Cloud Engineer — Sahel Logistics Ltd | Apr 2022 – Present
+Built Azure virtual networks, VPN gateways and Azure Backup policies; scripted deployments in PowerShell.
+Managed Cisco and FortiGate firewalls, VLAN design and WAN links for 11 depots.
+Systems Officer — Northern Water Board | Feb 2019 – Mar 2022
+Administered Windows Server 2019 and Active Directory; supported Office 365 email and Teams.
+Troubleshot LAN/WAN incidents and coordinated with vendors.
+IT Support Technician — Kano Data Hub | Aug 2017 – Jan 2019
+Desktop support and cabling.
+EDUCATION
+BSc Computer Science — Bayero University Kano, 2016
+CERTIFICATIONS
+CCNA
+Microsoft Certified: Azure Administrator Associate (AZ-104)

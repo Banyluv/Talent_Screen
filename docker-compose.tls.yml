@@ -1,0 +1,19 @@
+# Optional: automatic HTTPS with Caddy (Let's Encrypt) in front of the web service.
+#   DOMAIN=talentscreen.ecews.org  PUBLIC_URL=https://talentscreen.ecews.org  in .env, DNS A record → this host, ports 80/443 open
+#   docker compose -f docker-compose.yml -f docker-compose.tls.yml up -d
+services:
+  web:
+    ports: !reset []
+  caddy:
+    image: caddy:2.8-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443", "443:443/udp"]
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+    volumes:
+      - ./deploy/caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddydata:/data
+    depends_on: [web]
+    networks: [frontend]
+volumes:
+  caddydata:
