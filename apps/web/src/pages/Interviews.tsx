@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { patch, post } from '../api';
+import { patch, post, put } from '../api';
 import { fmtDateTime, useAction, useCan, useData } from '../lib';
 import { Drawer, ErrorBox, Loading, PageHead, Pill } from '../ui';
 
@@ -11,6 +11,7 @@ export default function Interviews() {
   const { data, error, reload } = useData<any[]>('/interviews');
   const [scheduling, setScheduling] = useState(false);
   const [scoring, setScoring] = useState<any>(null);
+  const [panelFor, setPanelFor] = useState<any>(null);
   const { busy, run } = useAction();
   return (
     <>
@@ -27,7 +28,11 @@ export default function Interviews() {
                 <td><Link to={`/candidates/${i.candidate_id}`}>{i.candidate}</Link></td>
                 <td>{i.job_title}</td>
                 <td style={{ whiteSpace: 'nowrap' }}>{fmtDateTime(i.scheduled_at)}<div className="muted small">{i.mode}{i.location && ` · ${i.location}`}</div></td>
-                <td className="small">{i.panel.map((p: any) => <div key={p.id}>{p.name} {p.scored && <span className="ok" aria-label="scored">✓</span>}</div>)}</td>
+                <td className="small">
+                  {i.panel.map((p: any) => <div key={p.id}>{p.name} {p.scored && <span className="ok" aria-label="scored">✓</span>}</div>)}
+                  {can('interviews.schedule') && i.status !== 'cancelled' &&
+                    <button className="btn sm ghost" onClick={() => setPanelFor(i)}>Add or remove</button>}
+                </td>
                 <td className="n">{i.avg_total ?? '—'}</td>
                 <td><Pill value={i.status} /></td>
                 <td><Pill value={i.latest_recommendation} /></td>
@@ -45,7 +50,73 @@ export default function Interviews() {
       )}
       {scheduling && <Schedule onClose={() => setScheduling(false)} onDone={() => { setScheduling(false); reload(); }} />}
       {scoring && <Score interview={scoring} onClose={() => setScoring(null)} onDone={() => { setScoring(null); reload(); }} />}
+      {panelFor && <Panel interview={panelFor} onClose={() => setPanelFor(null)} onDone={() => { setPanelFor(null); reload(); }} />}
     </>
+  );
+}
+
+/** Add or remove panel members after an interview has been scheduled. */
+function Panel({ interview, onClose, onDone }: { interview: any; onClose: () => void; onDone: () => void }) {
+  const users = useData<any[]>('/users');
+  const { busy, run } = useAction();
+  const current: any[] = interview.panel ?? [];
+  const [chosen, setChosen] = useState<string[]>(current.map((p) => p.id));
+  const scored = new Set(current.filter((p) => p.scored).map((p) => p.id));
+
+  // Only people the API will accept, plus anyone already on the panel (in case their role changed).
+  const eligible = (users.data ?? []).filter((u) => u.can_score || current.some((p) => p.id === u.id));
+  const added = chosen.filter((id) => !current.some((p) => p.id === id));
+  const removed = current.filter((p) => !chosen.includes(p.id)).map((p) => p.id);
+  const dirty = added.length > 0 || removed.length > 0;
+
+  async function save() {
+    const r = await run(() => put(`/interviews/${interview.id}/panelists`, { panelistIds: chosen }), 'Panel updated');
+    if (r) onDone();
+  }
+
+  return (
+    <Drawer eyebrow="Interview panel" title={interview.candidate} onClose={onClose}>
+      <div className="muted">
+        {interview.job_title} · {fmtDateTime(interview.scheduled_at)} WAT
+      </div>
+      {!users.data ? <Loading /> : (
+        <div className="stack">
+          <div className="note">
+            Added members are emailed the position, date and time. Someone who has already
+            scored cannot be removed — their score is part of the record.
+          </div>
+          <fieldset><legend>Panel members</legend>
+            <div className="stack" style={{ gap: 6 }}>
+              {eligible.map((u) => (
+                <label key={u.id} className="check">
+                  <input
+                    type="checkbox"
+                    checked={chosen.includes(u.id)}
+                    disabled={scored.has(u.id)}
+                    onChange={(e) => setChosen(e.target.checked ? [...chosen, u.id] : chosen.filter((x) => x !== u.id))}
+                  />
+                  {u.full_name} <span className="muted">· {u.role_name ?? u.role_key}</span>
+                  {scored.has(u.id) && <span className="tag hit">scored</span>}
+                </label>
+              ))}
+              {!eligible.length && <p className="muted">Nobody holds permission to score interviews.</p>}
+            </div>
+          </fieldset>
+          <div className="row">
+            <button className="btn primary" disabled={busy || !dirty || chosen.length === 0} onClick={save}>
+              {busy ? 'Saving…' : 'Save panel'}
+            </button>
+            <span className="muted small">
+              {added.length > 0 && `${added.length} to add`}
+              {added.length > 0 && removed.length > 0 && ' · '}
+              {removed.length > 0 && `${removed.length} to remove`}
+              {!dirty && 'No changes'}
+            </span>
+          </div>
+          {chosen.length === 0 && <div className="error">An interview needs at least one panel member.</div>}
+        </div>
+      )}
+    </Drawer>
   );
 }
 
@@ -54,7 +125,7 @@ function Schedule({ onClose, onDone }: { onClose: () => void; onDone: () => void
   const users = useData<any[]>('/users');
   const { busy, run } = useAction();
   const eligible = (cands.data ?? []).filter((c) => c.evaluation_status === 'completed' && ['Shortlist', 'Consider', 'Hold'].includes(c.recommendation) && !['hired', 'rejected', 'withdrawn'].includes(c.status));
-  const panel = (users.data ?? []).filter((u) => ['interview_panel', 'hiring_manager', 'hr_admin', 'super_admin'].includes(u.role_key));
+  const panel = (users.data ?? []).filter((u) => u.can_score);
   const [f, setF] = useState({ candidateId: '', date: '', time: '10:00', durationMin: 45, mode: 'Microsoft Teams', location: '', panelistIds: [] as string[] });
   const submit = async () => {
     const at = new Date(`${f.date}T${f.time}:00+01:00`).toISOString(); // WAT

@@ -118,7 +118,9 @@ async def users(me: AuthUser = Depends(require("users.manage", "interviews.sched
     full = "users.manage" in me.permissions
     rows = await db.many(
         """SELECT u.id, u.email, u.full_name, u.auth_provider, u.is_active, u.last_login_at, u.created_at,
-                  u.locked_until, r.key AS role_key, r.name AS role_name, d.id AS department_id, d.name AS department
+                  u.locked_until, r.key AS role_key, r.name AS role_name, d.id AS department_id, d.name AS department,
+                  EXISTS (SELECT 1 FROM role_permissions rp
+                          WHERE rp.role_id = u.role_id AND rp.permission_key = 'interviews.score') AS can_score
            FROM users u JOIN roles r ON r.id=u.role_id LEFT JOIN departments d ON d.id=u.department_id
            ORDER BY u.full_name"""
     )
@@ -132,6 +134,7 @@ async def users(me: AuthUser = Depends(require("users.manage", "interviews.sched
             "role_key": r["role_key"],
             "role_name": r["role_name"],
             "department": r["department"],
+            "can_score": r["can_score"],
         }
         for r in rows
         if r["is_active"]

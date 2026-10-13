@@ -47,11 +47,37 @@ class RecommendationBody(BaseModel):
     justification: str = Field(min_length=10, max_length=2000)
 
 
-def _when(iso: str) -> str:
-    dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=timezone.utc)
-    return dt.astimezone(WAT).strftime("%d %b %Y, %H:%M")
+def _wat(moment: datetime) -> datetime:
+    """A stored timestamp as Africa/Lagos local time."""
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return moment.astimezone(WAT)
+
+
+def _panel_message(
+    job_title: str,
+    job_ref: str,
+    candidate: str,
+    when: datetime,
+    duration: int,
+    mode: str,
+    location: str,
+) -> tuple[str, str]:
+    """Subject and body the panel receives: the position, date and time.
+
+    The subject is kept ASCII: a non-ASCII character here forces RFC 2047
+    encoded-words, which some clients render poorly when the line folds.
+    """
+    subject = f"Interview panel: {candidate} - {job_title}"
+    where = f"{mode} · {location}" if location else mode
+    body = "\n".join([
+        f"Position: {job_title} ({job_ref})",
+        f"Candidate: {candidate}",
+        f"Date: {when.strftime('%A %d %B %Y')}",
+        f"Time: {when.strftime('%H:%M')} WAT, {duration} minutes",
+        f"Mode: {where}",
+    ])
+    return subject, body
 
 
 @router.get("/interviews")
@@ -136,11 +162,128 @@ async def schedule(
         return str(new_id)
 
     interview_id = await db.tx(run)
-    await notifications.to_users(
-        unique_ids, "interview.assigned", f"Interview panel: {cand['full_name']}",
-        f"{_when(body.scheduledAt)} WAT · {body.mode or 'Microsoft Teams'}", "/interviews",
+    job = await db.one("SELECT title, ref_code FROM jobs WHERE id=$1", [str(cand["job_id"])])
+    subject, message = _panel_message(
+        (job or {}).get("title") or "", (job or {}).get("ref_code") or "",
+        cand["full_name"], _wat(parse_datetime(body.scheduledAt)),
+        body.durationMin or 45, body.mode or "Microsoft Teams", body.location or "",
     )
+    await notifications.to_users(unique_ids, "interview.assigned", subject, message, "/interviews")
     return {"id": interview_id}
+
+
+class PanelistsBody(BaseModel):
+    panelistIds: list[UUID] = Field(min_length=1)
+
+
+async def _panel_interview(interview_id: str) -> dict:
+    """The interview plus the labels the panel email needs."""
+    row = await db.one(
+        """SELECT i.*, c.full_name AS candidate, j.title AS job_title, j.ref_code AS job_ref
+           FROM interviews i JOIN candidates c ON c.id=i.candidate_id JOIN jobs j ON j.id=i.job_id
+           WHERE i.id=$1""",
+        [interview_id],
+    )
+    if not row:
+        raise HTTPException(404, detail="Interview not found")
+    return row
+
+
+async def _panel_of(interview_id: str) -> list[dict]:
+    return await db.many(
+        """SELECT u.id, u.full_name AS name, (s.id IS NOT NULL) AS scored
+           FROM interview_panelists ip JOIN users u ON u.id=ip.user_id
+           LEFT JOIN interview_scores s ON s.interview_id=ip.interview_id AND s.panelist_id=ip.user_id
+           WHERE ip.interview_id=$1 ORDER BY u.full_name""",
+        [interview_id],
+    )
+
+
+async def _score_eligible(user_ids: list[str]) -> list[str]:
+    """Keep only active users whose role may score interviews."""
+    rows = await db.many(
+        """SELECT u.id FROM users u JOIN role_permissions rp ON rp.role_id=u.role_id
+           WHERE u.id = ANY($1::uuid[]) AND u.is_active AND rp.permission_key='interviews.score'""",
+        [user_ids],
+    )
+    return [str(r["id"]) for r in rows]
+
+
+async def _mail_panel(interview: dict, user_ids: list[str]) -> None:
+    subject, message = _panel_message(
+        interview["job_title"], interview["job_ref"], interview["candidate"],
+        _wat(interview["scheduled_at"]), interview["duration_min"],
+        interview["mode"], interview["location"] or "",
+    )
+    await notifications.to_users(user_ids, "interview.assigned", subject, message, "/interviews")
+
+
+@router.put("/interviews/{interview_id}/panelists")
+async def set_panel(
+    interview_id: UUID,
+    body: PanelistsBody,
+    me: AuthUser = Depends(require("interviews.schedule")),
+    ctx: AuditContext = Depends(audit_context),
+):
+    """Replace the interview panel.
+
+    Everything is validated before anything is written, so a rejected change
+    leaves the panel untouched. Added members are emailed the position, date and
+    time; removed members are told they are no longer on the panel.
+    """
+    iid = str(interview_id)
+    interview = await _panel_interview(iid)
+    if interview["status"] == "cancelled":
+        raise HTTPException(400, detail="This interview was cancelled")
+
+    wanted = list(dict.fromkeys(str(x) for x in body.panelistIds))
+    current = {str(p["id"]): p for p in await _panel_of(iid)}
+    removed = [uid for uid in current if uid not in wanted]
+    added = [uid for uid in wanted if uid not in current]
+
+    scored = [current[uid]["name"] for uid in removed if current[uid]["scored"]]
+    if scored:
+        raise HTTPException(
+            400,
+            detail=f"{', '.join(scored)} already scored this interview, which is part of the record. "
+                   "Cancel the interview and schedule another instead.",
+        )
+    if len(await _score_eligible(wanted)) != len(wanted):
+        raise HTTPException(
+            400, detail="Every panel member needs an active account with permission to score interviews"
+        )
+
+    if added or removed:
+        async def run(q: db.Conn) -> None:
+            if removed:
+                await q.exec(
+                    "DELETE FROM interview_panelists WHERE interview_id=$1 AND user_id = ANY($2::uuid[])",
+                    [iid, removed],
+                )
+            if added:
+                await q.exec(
+                    "INSERT INTO interview_panelists SELECT $1, unnest($2::uuid[]) ON CONFLICT DO NOTHING",
+                    [iid, added],
+                )
+            await audit.record(
+                ctx, "interview.panel_changed", "interview", iid,
+                {"added": added, "removed": removed}, q,
+            )
+
+        await db.tx(run)
+        if added:
+            await _mail_panel(interview, added)
+        for uid in removed:
+            await notifications.to_users(
+                [uid], "interview.removed",
+                f"Removed from the panel: {interview['candidate']} - {interview['job_title']}",
+                f"You are no longer on the panel for {interview['job_title']} "
+                f"({interview['job_ref']}) on "
+                f"{_wat(interview['scheduled_at']).strftime('%d %b %Y at %H:%M')} WAT.",
+                "/interviews",
+            )
+
+    return {"panel": await _panel_of(iid), "added": added, "removed": removed}
 
 
 @router.patch("/interviews/{interview_id}")
