@@ -1,7 +1,7 @@
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { api, apiBase, setToken } from '../api';
 import { useData, useSession } from '../lib';
-import { Icon, ThemeToggle } from '../ui';
+import { Icon } from '../ui';
 
 export default function Login() {
   const { setSession } = useSession();
@@ -12,6 +12,11 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(params.get('error') ?? '');
   const [busy, setBusy] = useState(false);
+
+  // The sign-in screen is always light, so point the browser chrome at the light palette.
+  useEffect(() => {
+    document.querySelector('meta[name="theme-color"]')?.setAttribute('content', '#1E4634');
+  }, []);
 
   async function submit(e: FormEvent) {
     e.preventDefault(); setBusy(true); setError('');
@@ -26,7 +31,6 @@ export default function Login() {
   const p = providers.data;
   return (
     <div className="login">
-      <div className="login-theme"><ThemeToggle /></div>
       <div className="login-card">
         <img className="logo" src="/ecews-logo.png" alt="ECEWS — Excellence Community Education Welfare Scheme" />
         <h1>TalentScreen</h1>
