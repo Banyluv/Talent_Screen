@@ -1,6 +1,7 @@
 import { FormEvent, useState } from 'react';
 import { api, apiBase, setToken } from '../api';
 import { useData, useSession } from '../lib';
+import { Icon, ThemeToggle } from '../ui';
 
 export default function Login() {
   const { setSession } = useSession();
@@ -8,6 +9,7 @@ export default function Login() {
   const params = new URLSearchParams(location.search);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(params.get('error') ?? '');
   const [busy, setBusy] = useState(false);
 
@@ -24,6 +26,7 @@ export default function Login() {
   const p = providers.data;
   return (
     <div className="login">
+      <div className="login-theme"><ThemeToggle /></div>
       <div className="login-card">
         <img className="logo" src="/ecews-logo.png" alt="ECEWS — Excellence Community Education Welfare Scheme" />
         <h1>TalentScreen</h1>
@@ -33,7 +36,19 @@ export default function Login() {
         {(p?.local ?? true) && (
           <form className="stack" onSubmit={submit}>
             <label className="f">Work email<input id="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} /></label>
-            <label className="f">Password<input id="password" type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></label>
+            <label className="f">Password
+              <span className="pw">
+                <input id="password" type={showPassword ? 'text' : 'password'} autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} />
+                <button
+                  type="button"
+                  className="pw-toggle"
+                  onClick={(e) => { e.preventDefault(); setShowPassword((v) => !v); }}
+                  aria-pressed={showPassword}
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  title={showPassword ? 'Hide password' : 'Show password'}
+                >{showPassword ? Icon.eyeOff : Icon.eye}</button>
+              </span>
+            </label>
             {error && <div className="error" role="alert">{error}</div>}
             <button className="btn primary" style={{ justifyContent: 'center' }} disabled={busy}>{busy ? 'Signing in…' : 'Sign in'}</button>
           </form>

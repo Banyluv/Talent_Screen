@@ -5,13 +5,14 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from pydantic import BaseModel, Field
 
-from .. import audit, db, notifications
-from ..access import assert_job, job_scope
+from .. import audit, config, db, notifications
+from ..access import assert_job, job_expiry_cutoff, job_scope, job_visible_sql
 from ..deps import audit_context, current_user, require
 from ..domain import WEIGHT_KEYS, AuditContext, AuthUser
+from ..services import vacancy_import
 from ..services.evaluation import service as evaluations
 from ..validation import parse_date
 
@@ -77,6 +78,21 @@ def _check_weights(w: dict[str, Any] | None) -> None:
         raise HTTPException(400, detail=f"Weights total {int(total)}%. They must total 100%.")
 
 
+async def _next_ref(q: db.Conn) -> str:
+    """Next 'ECEWS-<year>-<nnn>'. Serialised so concurrent imports cannot collide, and
+    derived from the highest existing number rather than a row count, so deleting a
+    vacancy cannot make a later one reuse its reference."""
+    await q.exec("SELECT pg_advisory_xact_lock(777003)")
+    year = datetime.now(timezone.utc).year
+    highest = await db.value(
+        r"""SELECT COALESCE(MAX((regexp_match(ref_code, '^ECEWS-\d{4}-(\d+)$'))[1]::int), 0)
+            FROM jobs WHERE ref_code LIKE 'ECEWS-' || $1 || '-%'""",
+        [str(year)],
+        q,
+    )
+    return f"ECEWS-{year}-{int(highest or 0) + 1:03d}"
+
+
 class JobBody(BaseModel):
     title: str = Field(min_length=3, max_length=160)
     departmentId: UUID | None = None
@@ -100,7 +116,17 @@ class DecisionBody(BaseModel):
 
 
 @router.get("")
-async def list_jobs(me: AuthUser = Depends(current_user)):
+async def list_jobs(
+    includeExpired: bool = Query(default=False),
+    me: AuthUser = Depends(current_user),
+):
+    """Vacancies visible to me. Ones that closed more than JOB_EXPIRY_GRACE_DAYS ago
+    are hidden unless `includeExpired=true` (used by the historical report filter)."""
+    params: list[Any] = [me.id]
+    expiry = ""
+    if not includeExpired:
+        params.append(job_expiry_cutoff())
+        expiry = f" AND {job_visible_sql(len(params))}"
     return await db.many(
         f"""SELECT j.id, j.ref_code, j.title, j.location, j.employment_type, j.status, j.created_at, j.closes_on,
                    d.name AS department, hm.full_name AS hiring_manager, rq.full_name AS requested_by_name,
@@ -110,9 +136,109 @@ async def list_jobs(me: AuthUser = Depends(current_user)):
                    (SELECT count(*)::int FROM evaluations e WHERE e.job_id=j.id AND e.is_current AND e.status IN ('pending','running')) AS evaluating
             FROM jobs j LEFT JOIN departments d ON d.id=j.department_id
             LEFT JOIN users hm ON hm.id=j.hiring_manager_id LEFT JOIN users rq ON rq.id=j.requested_by
-            WHERE {job_scope(me)} ORDER BY (j.status='requested') DESC, (j.status='open') DESC, j.created_at DESC""",
-        [me.id],
+            WHERE {job_scope(me)}{expiry} ORDER BY (j.status='requested') DESC, (j.status='open') DESC, j.created_at DESC""",
+        params,
     )
+
+
+def _reason(e: Exception) -> str:
+    """Message shown next to a skipped row."""
+    if isinstance(e, HTTPException):
+        detail = e.detail
+        return detail if isinstance(detail, str) else "; ".join(str(d) for d in detail)
+    return str(e)
+
+
+@router.get("/batch/template")
+async def batch_template(
+    format: str = Query(default="xlsx"),
+    me: AuthUser = Depends(require("jobs.create")),
+):
+    """A ready-to-fill spreadsheet or Word template for the batch import."""
+    if format == "docx":
+        return Response(
+            content=vacancy_import.build_template_docx(),
+            media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            headers={"Content-Disposition": 'attachment; filename="vacancy-batch-template.docx"'},
+        )
+    if format != "xlsx":
+        raise HTTPException(400, detail="format must be xlsx or docx")
+    return Response(
+        content=vacancy_import.build_template_xlsx(),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": 'attachment; filename="vacancy-batch-template.xlsx"'},
+    )
+
+
+@router.post("/batch")
+async def batch_import(
+    file: UploadFile = File(...),
+    me: AuthUser = Depends(require("jobs.create")),
+    ctx: AuditContext = Depends(audit_context),
+):
+    """Create one vacancy per spreadsheet row / Word section. Each row is independent:
+    a row that fails validation is reported and the others are still created."""
+    data = await file.read()
+    if not data:
+        raise HTTPException(400, detail="The file is empty")
+    if len(data) > config.max_upload_mb * 1024 * 1024:
+        raise HTTPException(400, detail=f"Larger than {config.max_upload_mb} MB")
+    try:
+        items = vacancy_import.parse_upload(file.filename or "", data)
+    except vacancy_import.UnsupportedFile as e:
+        raise HTTPException(400, detail=str(e))
+
+    departments = await db.many("SELECT id, name FROM departments")
+    by_name = {d["name"].strip().lower(): str(d["id"]) for d in departments}
+
+    created: list[dict[str, Any]] = []
+    skipped: list[dict[str, Any]] = []
+    for item in items:
+        title = (item.job.get("title") or "").strip()
+        try:
+            if not title:
+                raise HTTPException(400, detail="Title is required")
+            req = normalise_requirements(item.requirements)
+            warnings = list(item.warnings)
+            department_id = None
+            if item.job.get("department"):
+                department_id = by_name.get(item.job["department"].strip().lower())
+                if not department_id:
+                    warnings.append(f"Unknown department “{item.job['department']}” — left blank")
+
+            async def run(q: db.Conn) -> tuple[str, str]:
+                ref = await _next_ref(q)
+                new_id = await db.value(
+                    """INSERT INTO jobs (ref_code, title, department_id, location, employment_type, description,
+                         status, requirements, created_by, closes_on)
+                       VALUES ($1,$2,$3,$4,$5,$6,'open',$7,$8,$9) RETURNING id""",
+                    [
+                        ref, title, department_id, item.job.get("location") or "",
+                        item.job.get("employmentType") or "Full-time", item.job.get("description") or "",
+                        req, me.id, parse_date(item.job.get("closesOn")),
+                    ],
+                    q,
+                )
+                await audit.record(ctx, "job.created", "job", str(new_id),
+                                   {"ref": ref, "title": title, "batch": True}, q)
+                return ref, str(new_id)
+
+            ref, job_id = await db.tx(run)
+            created.append({"id": job_id, "ref": ref, "title": title, "warnings": warnings})
+        except Exception as e:
+            skipped.append({"label": item.label, "title": title, "reason": _reason(e)})
+
+    if created:
+        await audit.record(
+            ctx, "job.batch_imported", "job", None,
+            {"file": file.filename, "created": len(created), "skipped": len(skipped)},
+        )
+    return {
+        "source": file.filename,
+        "created": created,
+        "skipped": skipped,
+        "truncated": len(items) >= vacancy_import.MAX_ROWS,
+    }
 
 
 @router.get("/{job_id}")
@@ -143,8 +269,7 @@ async def create_job(
     _check_weights(body.weightsOverride)
 
     async def run(q: db.Conn) -> str:
-        seq = await db.value("SELECT count(*)::int + 1 FROM jobs", [], q)
-        ref = f"ECEWS-{datetime.now(timezone.utc).year}-{int(seq):03d}"
+        ref = await _next_ref(q)
         new_id = await db.value(
             """INSERT INTO jobs (ref_code, title, department_id, location, employment_type, description, status,
                  requirements, weights_override, hiring_manager_id, requested_by, created_by, closes_on)

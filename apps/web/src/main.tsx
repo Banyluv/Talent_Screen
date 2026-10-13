@@ -4,7 +4,7 @@ import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation } from 're
 import './styles.css';
 import { post, refreshSession, setSignedOutHandler, setToken } from './api';
 import { Session, SessionCtx, ToastProvider, initials, useCan, useData, useSession } from './lib';
-import { Icon } from './ui';
+import { Icon, ThemeToggle } from './ui';
 import Login from './pages/Login';
 import Dashboard from './pages/Dashboard';
 import Vacancies from './pages/Vacancies';
@@ -61,8 +61,9 @@ function Shell({ children }: { children: React.ReactNode }) {
         <header className="top">
           <div className="title">{title}</div>
           <NavLink to="/notifications" className="icon-btn" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>{Icon.bell}{unread > 0 && <span className="dot">{unread}</span>}</NavLink>
+          <ThemeToggle />
           <NavLink to="/account" className="me"><div className="avatar">{initials(session!.user.name)}</div><div className="who">{session!.user.name}<span>{session!.user.roleName}</span></div></NavLink>
-          <button className="btn sm" onClick={signOut}>Sign out</button>
+          <button className="icon-btn" onClick={signOut} aria-label="Sign out" title="Sign out">{Icon.logout}</button>
         </header>
         <main className="content">{children}</main>
       </div>

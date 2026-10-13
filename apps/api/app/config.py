@@ -76,6 +76,11 @@ organisation = (
 )
 seed_demo = _bool("SEED_DEMO_DATA")
 
+# A vacancy whose closing date has passed by more than this many days is hidden
+# from vacancy listings (see app/access.py: job_visible_sql). 0 hides it the day
+# after it closes; the default of 1 keeps it listed for one further day.
+job_expiry_grace_days = _int("JOB_EXPIRY_GRACE_DAYS", 1)
+
 # The web app's own origin. The browser calls the API directly, so the API needs
 # this to redirect back to the correct origin after single sign-on.
 web_url = (os.environ.get("FRONTEND_URL") or public_url).rstrip("/")

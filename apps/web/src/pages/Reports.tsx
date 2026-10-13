@@ -8,7 +8,8 @@ const PIPE = ['new', 'screening', 'shortlisted', 'interview', 'offer', 'hired', 
 
 export default function Reports() {
   const can = useCan();
-  const jobs = useData<any[]>('/jobs');
+  // Reports are historical: include vacancies that have since expired.
+  const jobs = useData<any[]>('/jobs?includeExpired=true');
   const [jobId, setJobId] = useState('');
   const { data: s, error } = useData<any>('/reports/summary' + (jobId ? `?jobId=${jobId}` : ''));
   const { busy, run } = useAction();

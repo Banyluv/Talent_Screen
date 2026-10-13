@@ -9,10 +9,32 @@ Return a SQL predicate over alias `j` (or `c`/`j`); `$1` must be the user id.
 """
 from __future__ import annotations
 
+from datetime import date, datetime, timedelta, timezone
+
 from fastapi import HTTPException
 
-from . import db
+from . import config, db
 from .domain import AuthUser
+
+# The organisation works in Africa/Lagos (WAT, UTC+1); closing dates follow that calendar.
+WAT = timezone(timedelta(hours=1))
+
+
+def job_expiry_cutoff() -> date:
+    """Vacancies closing before this date are hidden from listings.
+
+    With the default grace of one day, a vacancy closing on 13 October is listed on
+    13 and 14 October and disappears on 15 October.
+    """
+    return datetime.now(WAT).date() - timedelta(days=config.job_expiry_grace_days)
+
+
+def job_visible_sql(index: int) -> str:
+    """Predicate over alias `j`: the vacancy has not expired past the grace period.
+
+    Bind `job_expiry_cutoff()` as parameter `index`.
+    """
+    return f"(j.closes_on IS NULL OR j.closes_on >= ${index}::date)"
 
 
 def job_scope(me: AuthUser) -> str:

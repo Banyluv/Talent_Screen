@@ -7,7 +7,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 
 from .. import audit, db
-from ..access import job_scope
+from ..access import job_expiry_cutoff, job_scope, job_visible_sql
 from ..deps import audit_context, current_user, require
 from ..domain import AuditContext, AuthUser
 from ..services import report_export as xport
@@ -21,8 +21,8 @@ async def dashboard(me: AuthUser = Depends(current_user)):
     k = await db.one(
         f"""SELECT count(*) FILTER (WHERE j.status='open')::int AS open_jobs,
                    count(*) FILTER (WHERE j.status='requested')::int AS pending_requests
-            FROM jobs j WHERE {scope}""",
-        [me.id],
+            FROM jobs j WHERE {scope} AND {job_visible_sql(2)}""",
+        [me.id, job_expiry_cutoff()],
     )
     c = await db.one(
         f"""SELECT count(c.*)::int AS candidates,
