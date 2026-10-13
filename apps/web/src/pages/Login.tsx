@@ -1,5 +1,5 @@
 import { FormEvent, useState } from 'react';
-import { api, setToken } from '../api';
+import { api, apiBase, setToken } from '../api';
 import { useData, useSession } from '../lib';
 
 export default function Login() {
@@ -28,7 +28,7 @@ export default function Login() {
         <img className="logo" src="/ecews-logo.png" alt="ECEWS — Excellence Community Education Welfare Scheme" />
         <h1>TalentScreen</h1>
         <p className="tagline">…Improving Education and Health in Nigeria</p>
-        {p?.oidc && <a className="btn primary" style={{ justifyContent: 'center' }} href="/api/auth/oidc/login">Sign in with {p.oidc.name}</a>}
+        {p?.oidc && <a className="btn primary" style={{ justifyContent: 'center' }} href={apiBase + '/api/auth/oidc/login'}>Sign in with {p.oidc.name}</a>}
         {p?.oidc && p.local && <div className="divider">or use your password</div>}
         {(p?.local ?? true) && (
           <form className="stack" onSubmit={submit}>

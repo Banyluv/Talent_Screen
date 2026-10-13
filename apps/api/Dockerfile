@@ -1,30 +1,32 @@
 # syntax=docker/dockerfile:1.7
 # ECEWS TalentScreen — API, worker and migration image (one image, three commands)
 
-FROM node:22-alpine AS build
-WORKDIR /app
-COPY package.json package-lock.json ./
-RUN npm ci --no-audit --no-fund
-COPY tsconfig.json ./
-COPY src ./src
-RUN npm run build && npm prune --omit=dev --omit=optional
+FROM python:3.12-slim AS runtime
 
-FROM node:22-alpine AS runtime
-ENV NODE_ENV=production \
-    API_PORT=3000 \
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=1 \
+    API_PORT=8000 \
     STORAGE_LOCAL_DIR=/data/uploads
-RUN apk add --no-cache tini && mkdir -p /data/uploads && chown -R node:node /data
+
 WORKDIR /app
-COPY --from=build --chown=node:node /app/node_modules ./node_modules
-COPY --from=build --chown=node:node /app/dist ./dist
-COPY --chown=node:node package.json ./
-COPY --chown=node:node migrations ./migrations
-COPY --chown=node:node seed ./seed
-COPY --chown=node:node assets ./assets
-USER node
-EXPOSE 3000
+
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY app ./app
+COPY migrations ./migrations
+COPY seed ./seed
+COPY assets ./assets
+
+RUN useradd --create-home --uid 10001 app \
+    && mkdir -p /data/uploads \
+    && chown -R app:app /data /app
+USER app
+
+EXPOSE 8000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:3000/api/health >/dev/null || exit 1
-ENTRYPOINT ["/sbin/tini", "--"]
-# api (default) | worker: node dist/worker.js | migrations: node dist/migrate.js
-CMD ["node", "dist/main.js"]
+  CMD python -c "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4).status == 200 else 1)"
+
+# api (default) | worker: python -m app.worker | migrations: python -m app.migrate
+CMD ["python", "-m", "app.main"]

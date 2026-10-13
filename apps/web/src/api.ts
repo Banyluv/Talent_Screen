@@ -1,5 +1,12 @@
-/** Thin API client: Bearer access token in memory, refresh via httpOnly cookie, one retry on 401. */
+/* Thin API client: access token in memory, refresh via httpOnly cookie, one retry on 401.
+ *
+ * The browser talks to the API directly. Set VITE_API_URL to the API origin
+ * (e.g. http://localhost:8000); in development it defaults to that, and in a
+ * production build it defaults to the origin the app itself is served from. */
 export interface User { id: string; email: string; name: string; role: string; roleName: string; permissions: string[] }
+
+const configuredBase = import.meta.env.VITE_API_URL as string | undefined;
+export const apiBase = (configuredBase ?? (import.meta.env.DEV ? 'http://localhost:8000' : '')).replace(/\/+$/, '');
 
 let accessToken: string | null = null;
 let refreshing: Promise<boolean> | null = null;
@@ -11,7 +18,7 @@ export function setToken(t: string | null) { accessToken = t; }
 export class ApiError extends Error { constructor(public status: number, message: string) { super(message); } }
 
 export async function refreshSession(): Promise<{ accessToken: string; user: User; mustChangePassword: boolean } | null> {
-  const r = await fetch('/api/auth/refresh', { method: 'POST', credentials: 'include' });
+  const r = await fetch(apiBase + '/api/auth/refresh', { method: 'POST', credentials: 'include' });
   if (!r.ok) return null;
   const j = await r.json();
   accessToken = j.accessToken;
@@ -22,7 +29,7 @@ async function raw(path: string, init: RequestInit = {}, retry = true): Promise<
   const headers = new Headers(init.headers);
   if (accessToken) headers.set('Authorization', `Bearer ${accessToken}`);
   if (init.body && !(init.body instanceof FormData) && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
-  const r = await fetch('/api' + path, { ...init, headers, credentials: 'include' });
+  const r = await fetch(apiBase + '/api' + path, { ...init, headers, credentials: 'include' });
   if (r.status === 401 && retry && !path.startsWith('/auth/')) {
     refreshing ??= refreshSession().then((x) => !!x).finally(() => { refreshing = null; });
     if (await refreshing) return raw(path, init, false);

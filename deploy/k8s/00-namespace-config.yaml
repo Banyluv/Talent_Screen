@@ -16,7 +16,11 @@ metadata:
 data:
   NODE_ENV: production
   PUBLIC_URL: https://talentscreen.ecews.org
+  FRONTEND_URL: https://talentscreen.ecews.org
   CORS_ORIGINS: https://talentscreen.ecews.org
+  # Same origin via the web app's /api proxy, so "lax" is correct.
+  COOKIE_SAMESITE: lax
+  API_PORT: "8000"
   DATABASE_SSL: "true"
   STORAGE_DRIVER: azure
   AZURE_STORAGE_CONTAINER: talentscreen-cvs

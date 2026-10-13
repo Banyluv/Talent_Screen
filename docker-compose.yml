@@ -6,6 +6,7 @@
 #
 # Services: postgres (data + job queue), migrate (one-shot schema/seed), api (REST),
 #           worker (CV evaluation, retention), web (React + nginx reverse proxy).
+# The queue is a table in Postgres (no pg-boss / broker to run).
 # CV files are encrypted and kept on the "uploads" volume by default (STORAGE_DRIVER=local).
 # Optional S3-compatible storage: set STORAGE_DRIVER=s3 and run with --profile s3 (MinIO),
 # or point S3_ENDPOINT at your own S3 / Azure Blob (STORAGE_DRIVER=azure) instead.
@@ -14,8 +15,13 @@ name: talentscreen
 
 x-app-env: &app-env
   NODE_ENV: production
+  API_PORT: "8000"
   DATABASE_URL: postgres://${POSTGRES_USER:-talentscreen}:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:-talentscreen}
   PUBLIC_URL: ${PUBLIC_URL:-http://localhost:8080}
+  FRONTEND_URL: ${PUBLIC_URL:-http://localhost:8080}
+  # The web app proxies /api, so browser and API share an origin ("lax" is fine).
+  # Set to "none" only if you expose the API on a different site than the web app.
+  COOKIE_SAMESITE: ${COOKIE_SAMESITE:-lax}
   CORS_ORIGINS: ${PUBLIC_URL:-http://localhost:8080}
   JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
   DATA_ENCRYPTION_KEY: ${DATA_ENCRYPTION_KEY:?set DATA_ENCRYPTION_KEY in .env}
@@ -97,7 +103,7 @@ services:
   migrate:
     build: ./apps/api
     image: ${REGISTRY:-ecews}/talentscreen-api:${TAG:-latest}
-    command: ["node", "dist/migrate.js"]
+    command: ["python", "-m", "app.migrate"]
     environment: *app-env
     volumes: [uploads:/data/uploads]
     depends_on:
@@ -119,7 +125,7 @@ services:
     build: ./apps/api
     image: ${REGISTRY:-ecews}/talentscreen-api:${TAG:-latest}
     restart: unless-stopped
-    command: ["node", "dist/worker.js"]
+    command: ["python", "-m", "app.worker"]
     environment: *app-env
     volumes: [uploads:/data/uploads]
     depends_on:

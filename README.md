@@ -70,10 +70,10 @@ API documentation (OpenAPI/Swagger) is served at **/api/docs**.
 | Service | Image | Purpose |
 |---|---|---|
 | `web` | `talentscreen-web` (nginx) | React app; proxies `/api`; security headers |
-| `api` | `talentscreen-api` | NestJS REST API: auth, RBAC, vacancies, candidates, evaluations, interviews, reports, audit |
+| `api` | `talentscreen-api` | FastAPI (Python) REST API: auth, RBAC, vacancies, candidates, evaluations, interviews, reports, audit |
 | `worker` | `talentscreen-api` | Evaluates queued CVs; nightly data-retention sweep. Scale with `WORKER_REPLICAS` |
 | `migrate` | `talentscreen-api` | One-shot: applies SQL migrations, seeds roles and permissions, creates the first admin |
-| `postgres` | `postgres:16-alpine` | All data, plus the durable job queue (pg-boss) |
+| `postgres` | `postgres:16-alpine` | All data, plus the durable job queue (a table in Postgres) |
 | `minio` | `minio/minio` | S3-compatible store for encrypted CV files (console on `127.0.0.1:9001`) |
 
 Front-end pages: sign-in, dashboard, vacancies (create, request, approve, edit, close), CV upload (single, bulk,
@@ -221,12 +221,31 @@ is hash-chained to the previous one, so tampering by a database superuser is det
 
 ## Development
 
+The API is Python 3.12+ (FastAPI). The front end is React + Vite and talks to the API
+directly, so the API needs to allow the dev origin (the default `CORS_ORIGINS` already
+includes `http://localhost:5173`).
+
 ```bash
 # Postgres 16 on localhost:5432 with database/user "talentscreen", then:
-cd apps/api && npm install && npm run build && node dist/migrate.js
-EVALUATE_INLINE=true node dist/main.js            # or run dist/worker.js alongside
-cd apps/web && npm install && npm run dev          # http://localhost:5173 (proxies /api to :3000)
-cd apps/api && npm test                            # engine unit tests (vitest)
+cd apps/api
+python -m venv .venv && . .venv/bin/activate      # Windows: .venv\Scripts\activate
+pip install -r requirements.txt
+python -m app.migrate                              # applies SQL migrations, seeds reference data
+EVALUATE_INLINE=true python -m app.main            # http://localhost:8000 (docs at /api/docs)
+python -m app.worker                               # or run the worker alongside the API
+python -m pytest test/test_engine.py               # engine unit tests
+
+cd apps/web && npm install && npm run dev          # http://localhost:5173 → API on :8000
+```
+
+Point the front end at a different API with `VITE_API_URL` (defaults to
+`http://localhost:8000` in development and to the web app's own origin in a build,
+which is what the Docker/nginx reverse proxy uses).
+
+To wipe the demonstration content from the database:
+
+```bash
+cd apps/api && python -m app.clear_demo
 ```
 
 ---
@@ -234,11 +253,13 @@ cd apps/api && npm test                            # engine unit tests (vitest)
 ## Project layout
 
 ```
-apps/api/                NestJS API + worker (one image)
-  migrations/            SQL schema (append-only audit, encrypted columns)
+apps/api/                FastAPI (Python) API + worker (one image)
+  app/engine/            extract → parse → match → (RAG + LLM) → score
+  app/routers/           REST endpoints
+  app/services/          evaluation, candidates, report exports
+  migrations/            SQL schema (append-only audit, encrypted columns, job queue)
   seed/                  fictitious demo vacancies and CVs
-  src/evaluation/engine/ extract → parse → match → (RAG + LLM) → score
-  test/                  engine unit tests
+  test/                  engine unit tests (pytest)
 apps/web/                React + Vite front end, nginx config
 deploy/k8s/              Kubernetes manifests (AKS reference)
 deploy/caddy/            HTTPS reverse proxy for the TLS overlay
