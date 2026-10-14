@@ -8,7 +8,7 @@ from uuid import UUID
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 
-from .. import audit, db, security
+from .. import audit, db, notifications, security
 from ..deps import audit_context, current_user, require
 from ..domain import WEIGHT_KEYS, AuditContext, AuthUser
 from ..engine.llm import provider_ready
@@ -78,6 +78,10 @@ class AiBody(BaseModel):
 
 class MarkReadBody(BaseModel):
     ids: list[str] | None = None
+
+
+class MailTestBody(BaseModel):
+    to: str = Field(pattern=EMAIL_PATTERN, max_length=254)
 
 
 def validate_scoring(dto: ScoringBody) -> None:
@@ -466,6 +470,25 @@ async def update_ai(
     )
     await audit.record(ctx, "ai_settings.updated", "ai_settings", "1", body.model_dump())
     return {"ok": True}
+
+
+# ---------------------------------------------------------------------- mail
+
+
+@router.get("/settings/mail")
+async def mail_settings(me: AuthUser = Depends(require("ai.configure", "scoring.configure"))):
+    return notifications.mail_status()
+
+
+@router.post("/settings/mail/test")
+async def send_test_mail(
+    body: MailTestBody,
+    me: AuthUser = Depends(require("ai.configure")),
+    ctx: AuditContext = Depends(audit_context),
+):
+    result = await notifications.send_test_email(body.to)
+    await audit.record(ctx, "mail.test", "settings", "mail", {"to": body.to, "ok": result["ok"]})
+    return result
 
 
 # ---------------------------------------------------------------------- audit

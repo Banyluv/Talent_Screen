@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { put } from '../api';
-import { WEIGHT_LABELS, useAction, useCan, useData } from '../lib';
+import { post, put } from '../api';
+import { WEIGHT_LABELS, useAction, useCan, useData, useToast } from '../lib';
 import { Loading, PageHead } from '../ui';
 
 export default function Settings() {
@@ -10,6 +10,7 @@ export default function Settings() {
       <PageHead eyebrow="Administration" title="Scoring and AI settings" />
       {can('scoring.configure') && <Scoring />}
       {can('ai.configure', 'scoring.configure') && <Ai readOnly={!can('ai.configure')} />}
+      {can('ai.configure') && <Mail />}
     </>
   );
 }
@@ -82,6 +83,38 @@ function Ai({ readOnly }: { readOnly: boolean }) {
       </div>
       <div className="note" style={{ marginTop: 14 }}>The AI model only checks requirements the rules engine could not evidence. Every claim must quote the CV word for word; claims that don't are discarded and logged. Scores are always computed by the rules engine, so they stay explainable.</div>
       {!readOnly && <div className="row" style={{ marginTop: 14 }}><button className="btn primary" disabled={busy} onClick={async () => { await run(() => put('/settings/ai', f), 'AI settings saved'); reload(); }}>Save AI settings</button></div>}
+    </section>
+  );
+}
+
+function Mail() {
+  const { data, loading } = useData<any>('/settings/mail');
+  const { busy, run } = useAction();
+  const toast = useToast();
+  const [to, setTo] = useState('');
+  if (loading || !data) return <Loading />;
+  const send = async () => {
+    const r = await run(() => post<{ ok: boolean; message: string }>('/settings/mail/test', { to }));
+    if (r) toast(r.message, !r.ok);
+  };
+  return (
+    <section className="panel">
+      <div className="panel-head"><h2>Outbound email</h2><span className={'pill ' + (data.configured ? 'p-Shortlist' : 'p-Reject')}>{data.configured ? 'Configured' : 'Not configured'}</span></div>
+      {data.configured ? (
+        <p className="muted" style={{ marginTop: 0 }}>
+          Emails — for example, when an interview panel is assigned — are sent from <strong>{data.from}</strong> via <strong>{data.host}:{data.port}</strong>{data.secure ? ' over TLS' : ''}{data.authenticated ? ' (authenticated)' : ''}.
+        </p>
+      ) : (
+        <div className="note" style={{ marginTop: 0 }}>
+          No SMTP server is configured, so email notifications are skipped. Set SMTP_HOST, SMTP_PORT, SMTP_USER,
+          SMTP_PASS and SMTP_FROM in the server environment, then restart the API. These stay on the server and are
+          never shown in the browser.
+        </div>
+      )}
+      <div className="row" style={{ marginTop: 14, gap: 8 }}>
+        <input id="mail_to" type="email" placeholder="you@example.com" value={to} onChange={(e) => setTo(e.target.value)} style={{ minWidth: 260 }} />
+        <button className="btn primary" disabled={busy || !to || !data.configured} onClick={send}>Send test email</button>
+      </div>
     </section>
   );
 }

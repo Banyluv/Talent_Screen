@@ -25,6 +25,50 @@ def _send_mail(to: str, subject: str, body: str, link: str | None) -> None:
         smtp.send_message(msg)
 
 
+def mail_status() -> dict:
+    """What the admin settings screen needs to show: is outbound email configured.
+
+    Never includes the SMTP password (or the username): credentials stay in the
+    server environment, exactly like the AI provider keys.
+    """
+    configured = bool(config.mail_host)
+    return {
+        "configured": configured,
+        "host": config.mail_host or "",
+        "port": config.mail_port,
+        "secure": config.mail_secure,
+        "authenticated": bool(config.mail_user),
+        "from": config.mail_from,
+        "reason": (
+            None
+            if configured
+            else "Set SMTP_HOST (and SMTP_PORT, SMTP_USER, SMTP_PASS, SMTP_FROM) "
+            "in the server environment and restart the API"
+        ),
+    }
+
+
+async def send_test_email(to: str) -> dict:
+    """Send a test message through the configured SMTP server (blocking, off-thread)."""
+    if not config.mail_host:
+        return {
+            "ok": False,
+            "message": "Outbound email is not configured. Set SMTP_HOST (and SMTP_PORT, "
+            "SMTP_USER, SMTP_PASS, SMTP_FROM) in the server environment and restart the API.",
+        }
+    try:
+        await asyncio.to_thread(
+            _send_mail,
+            to,
+            "Test email",
+            "This is a test message from TalentScreen. If you received it, outbound email is working.",
+            None,
+        )
+        return {"ok": True, "message": f"Test email sent to {to}"}
+    except Exception as e:  # surface the SMTP server's real complaint to the admin
+        return {"ok": False, "message": str(e)}
+
+
 async def to_users(
     user_ids: list[str],
     type_: str,
