@@ -147,6 +147,7 @@ All settings are environment variables; see [`.env.example`](.env.example) for t
 | `JWT_SECRET` | Signs 15-minute access tokens. Refresh tokens are random, hashed, rotated, httpOnly. |
 | `STORAGE_DRIVER` | `s3` (MinIO/S3), `azure` (Blob Storage, `AZURE_STORAGE_CONNECTION_STRING`) or `local`. |
 | `SEED_DEMO_DATA` | `false` in production. |
+| `SMTP_HOST` | Outbound email (e.g. to interview panel members). Set with `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM`; test from **Settings → Outbound email**. |
 | `LOCAL_LOGIN_ENABLED` | Set `false` once SSO works to make Entra ID the only sign-in. |
 
 Scoring weights, thresholds, hard rules, AI provider, evidence and redaction options and the retention period are
@@ -238,6 +239,18 @@ python -m pytest test/test_engine.py               # engine unit tests
 cd apps/web && npm install && npm run dev          # http://localhost:5173 → API on :8000
 ```
 
+**Windows, without Docker.** `scripts/dev-windows.ps1` starts the API and the web
+dev server together and writes their logs to `.logs/`:
+
+```powershell
+./scripts/dev-windows.ps1 -Seed     # run migrations + seed the demo data, then start
+./scripts/dev-windows.ps1           # start API on :8000 and web on :5173
+./scripts/dev-windows.ps1 -Stop     # stop both
+```
+
+It points `DATABASE_URL` at `127.0.0.1` on purpose: `localhost` resolves to `::1`,
+which a local PostgreSQL often authenticates differently from IPv4.
+
 Point the front end at a different API with `VITE_API_URL` (defaults to
 `http://localhost:8000` in development and to the web app's own origin in a build,
 which is what the Docker/nginx reverse proxy uses).
@@ -247,6 +260,11 @@ To wipe the demonstration content from the database:
 ```bash
 cd apps/api && python -m app.clear_demo
 ```
+
+It removes the `DEMO-` vacancies with everything hanging off them, the
+`@demo.ecews.local` accounts, and any notification or finished queue entry still
+pointing at deleted content. Safe to re-run; reference data and the append-only,
+hash-chained audit trail (which the database refuses to modify) are left alone.
 
 ---
 

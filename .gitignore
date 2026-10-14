@@ -8,6 +8,9 @@ venv/
 # Local data (encrypted CV uploads in development)
 apps/api/data/
 
+# Local dev logs (API/worker/web started by scripts/dev-windows.ps1)
+.logs/
+
 # Node
 node_modules/
 dist/

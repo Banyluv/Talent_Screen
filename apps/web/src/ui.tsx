@@ -26,7 +26,7 @@ export function Drawer({ title, eyebrow, onClose, children }: { title: ReactNode
   return (
     <div className="scrim" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="drawer" role="dialog" aria-modal="true">
-        <div className="drawer-head"><div>{eyebrow && <div className="eyebrow">{eyebrow}</div>}<h1>{title}</h1></div><button className="btn sm" onClick={onClose}>Close</button></div>
+        <div className="drawer-head"><div>{eyebrow && <div className="eyebrow">{eyebrow}</div>}<h1>{title}</h1></div><button className="btn sm primary" onClick={onClose}>Close</button></div>
         {children}
       </div>
     </div>
