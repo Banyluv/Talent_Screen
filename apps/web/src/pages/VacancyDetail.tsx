@@ -44,6 +44,9 @@ export default function VacancyDetail() {
               <div><span className="muted" style={{ width: 170 }}>Minimum qualification</span><b>{LEVELS[String(r.minQualificationLevel)]}</b></div>
               <div><span className="muted" style={{ width: 170 }}>Fields of study</span><span>{r.fieldsOfStudy.join(', ') || 'Any'}</span></div>
               <div><span className="muted" style={{ width: 170 }}>Experience</span><b>{r.minYears} years minimum, {r.preferredYears} preferred</b></div>
+              {job.project && <div><span className="muted" style={{ width: 170 }}>Project</span><span>{job.project}</span></div>}
+              {job.number_of_positions > 1 && <div><span className="muted" style={{ width: 170 }}>Positions</span><b>{job.number_of_positions}</b></div>}
+              {job.reports_to && <div><span className="muted" style={{ width: 170 }}>Reports to</span><span>{job.reports_to}</span></div>}
               {r.locationRequirements && <div><span className="muted" style={{ width: 170 }}>Location</span><span>{r.locationRequirements}</span></div>}
               {job.closes_on && <div><span className="muted" style={{ width: 170 }}>Closes</span><span>{fmtDate(job.closes_on)}</span></div>}
             </div>

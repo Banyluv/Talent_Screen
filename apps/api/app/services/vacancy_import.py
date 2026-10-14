@@ -37,9 +37,17 @@ FIELD_ALIASES: dict[str, str] = {
     "title": "title", "jobtitle": "title", "vacancy": "title", "vacancytitle": "title",
     "position": "title", "positiontitle": "title", "role": "title", "job": "title",
     "jobname": "title",
+    # ECEWS vacancy-advert column: "POSITIONS AVAILABLE"
+    "positionsavailable": "title", "positionavailable": "title", "vacanciesavailable": "title",
     "department": "department", "dept": "department", "unit": "department",
     "team": "department",
     "location": "location", "dutystation": "location", "duty": "location",
+    "project": "project", "projects": "project", "grant": "project", "programme": "project",
+    "numberofpersonsneeded": "numberOfPositions", "numberofpositions": "numberOfPositions",
+    "noofpositions": "numberOfPositions", "slots": "numberOfPositions", "headcount": "numberOfPositions",
+    "personsneeded": "numberOfPositions", "numberneeded": "numberOfPositions",
+    "reportinglines": "reportsTo", "reportsto": "reportsTo", "reportingline": "reportsTo",
+    "supervisor": "reportsTo", "linemanager": "reportsTo",
     "employmenttype": "employmentType", "type": "employmentType", "jobtype": "employmentType",
     "contract": "employmentType", "contracttype": "employmentType",
     "description": "description", "jobdescription": "description", "summary": "description",
@@ -75,7 +83,9 @@ FIELD_ALIASES: dict[str, str] = {
     "optional": "niceToHave",
 }
 
-JOB_FIELDS = ("title", "department", "location", "employmentType", "description", "closesOn")
+JOB_FIELDS = ("title", "department", "location", "employmentType", "description", "closesOn",
+              "project", "reportsTo")
+JOB_NUMBER_FIELDS = ("numberOfPositions",)
 REQUIREMENT_LIST_FIELDS = (
     "fieldsOfStudy", "requiredQualifications", "preferredQualifications", "requiredCertifications",
     "technicalSkills", "softSkills", "preferredSkills", "industryExperience", "mandatory", "niceToHave",
@@ -88,6 +98,9 @@ TEMPLATE_COLUMNS: list[tuple[str, str, str]] = [
     ("title", "Title", "Data Engineer"),
     ("department", "Department", "Strategic Information"),
     ("location", "Location", "Abuja, Nigeria"),
+    ("project", "Project", "BRIDGE"),
+    ("numberOfPositions", "Number of Positions", "3"),
+    ("reportsTo", "Reports To", "State Director"),
     ("employmentType", "Employment Type", "Full-time"),
     ("closesOn", "Closes On", "2026-12-31"),
     ("description", "Description", "Build and maintain the programme data warehouse."),
@@ -178,6 +191,14 @@ class Item:
             text = _cell_text(raw)
             if text:
                 self.job[key] = text
+            return
+        if key in JOB_NUMBER_FIELDS:
+            number = parse_number(raw)
+            if number is None:
+                if _cell_text(raw):
+                    self.warnings.append(f"Could not read {key} {raw!r}; it was ignored")
+            else:
+                self.job[key] = int(number)
             return
         if key == "minQualificationLevel":
             level = parse_qualification(raw)
@@ -425,6 +446,7 @@ def build_template_xlsx() -> bytes:
     notes["B1"].font = Font(bold=True)
     notes.append(["Title", "Required. One row per vacancy — a row without a title is skipped."])
     notes.append(["Department", "Must match an existing department name. Left blank if it does not match."])
+    notes.append(["Project / Number of Positions / Reports To", "Optional. Stored on the vacancy and shown on its page (ECEWS vacancy-advert columns)."])
     notes.append(["Employment Type", "Full-time, Part-time, Contract, Consultancy, Internship or Temporary. Defaults to Full-time."])
     notes.append(["Closes On", "A date, e.g. 2026-12-31. Optional."])
     notes.append(["Description", "Free text. Line breaks are preserved."])
@@ -459,6 +481,9 @@ def build_template_docx() -> bytes:
     document.add_heading("Data Engineer", level=1)
     document.add_paragraph("Department: Strategic Information")
     document.add_paragraph("Location: Abuja, Nigeria")
+    document.add_paragraph("Project: BRIDGE")
+    document.add_paragraph("Number of Positions: 3")
+    document.add_paragraph("Reports To: State Director")
     document.add_paragraph("Employment Type: Full-time")
     document.add_paragraph("Closes On: 2026-12-31")
     document.add_paragraph("Min Qualification Level: Bachelor's")

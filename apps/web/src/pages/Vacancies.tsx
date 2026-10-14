@@ -11,7 +11,7 @@ export default function Vacancies() {
   return (
     <>
       <PageHead eyebrow="Recruitment campaigns" title="Vacancies">
-        {can('jobs.create') && <button className="btn" onClick={() => setBatch(true)}>Batch upload</button>}
+        {can('jobs.create') && <button className="btn primary" onClick={() => setBatch(true)}>Batch upload</button>}
         {can('jobs.create') ? <Link className="btn primary" to="/vacancies/new">New vacancy</Link>
           : can('hiring_requests.create') ? <Link className="btn primary" to="/vacancies/new">Raise hiring request</Link> : null}
       </PageHead>
@@ -23,8 +23,8 @@ export default function Vacancies() {
           <tbody>
             {data.map((j) => (
               <tr key={j.id}>
-                <td><Link to={`/vacancies/${j.id}`}>{j.title}</Link><div className="muted small mono">{j.ref_code}{j.evaluating > 0 && ` · ${j.evaluating} evaluating`}</div></td>
-                <td>{j.department ?? '—'}</td><td>{j.location || '—'}</td>
+                <td><Link to={`/vacancies/${j.id}`}>{j.title}</Link><div className="muted small mono">{j.ref_code}{j.project ? ` · ${j.project}` : ''}{j.evaluating > 0 && ` · ${j.evaluating} evaluating`}</div></td>
+                <td>{j.department ?? '—'}</td><td>{j.location || '—'}{j.number_of_positions > 1 ? ` · ${j.number_of_positions} positions` : ''}</td>
                 <td><Pill value={j.status} />{j.status === 'requested' && <div className="muted small">by {j.requested_by_name}</div>}</td>
                 <td className="n">{j.applicants}</td><td className="n">{j.shortlisted}</td>
                 <td>{j.hiring_manager ?? '—'}</td><td style={{ whiteSpace: 'nowrap' }}>{fmtDate(j.created_at)}</td>
@@ -69,8 +69,8 @@ function BatchUpload({ onClose, onDone }: { onClose: () => void; onDone: () => v
 
         <div className="row">
           <span className="muted small">Not sure of the format? Start from a template:</span>
-          <button className="btn sm" disabled={busy} onClick={() => run(() => download('/jobs/batch/template?format=xlsx', 'vacancy-batch-template.xlsx'))}>Excel</button>
-          <button className="btn sm" disabled={busy} onClick={() => run(() => download('/jobs/batch/template?format=docx', 'vacancy-batch-template.docx'))}>Word</button>
+          <button className="btn sm primary" disabled={busy} onClick={() => run(() => download('/jobs/batch/template?format=xlsx', 'vacancy-batch-template.xlsx'))}>Excel</button>
+          <button className="btn sm primary" disabled={busy} onClick={() => run(() => download('/jobs/batch/template?format=docx', 'vacancy-batch-template.docx'))}>Word</button>
         </div>
 
         <div className="note">

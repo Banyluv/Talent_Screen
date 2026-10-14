@@ -43,7 +43,7 @@ def _num(v: Any, d: float) -> float:
         return d
 
 
-def normalise_requirements(r: dict[str, Any] | None) -> dict[str, Any]:
+def normalise_requirements(r: dict[str, Any] | None, *, require_skill: bool = True) -> dict[str, Any]:
     r = r or {}
     req = {
         "minQualificationLevel": _num(r.get("minQualificationLevel"), 3),
@@ -65,7 +65,7 @@ def normalise_requirements(r: dict[str, Any] | None) -> dict[str, Any]:
         raise HTTPException(400, detail="Unknown qualification level")
     if req["minYears"] < 0 or req["minYears"] > 40 or req["preferredYears"] < req["minYears"]:
         raise HTTPException(400, detail="Preferred years must be at least the minimum years")
-    if not req["technicalSkills"]:
+    if require_skill and not req["technicalSkills"]:
         raise HTTPException(400, detail="Add at least one required technical skill")
     return req
 
@@ -99,6 +99,9 @@ class JobBody(BaseModel):
     location: str | None = None
     employmentType: str | None = None
     description: str | None = None
+    project: str | None = None
+    numberOfPositions: int | None = Field(default=None, ge=1, le=1000)
+    reportsTo: str | None = None
     requirements: dict[str, Any]
     weightsOverride: dict[str, Any] | None = None
     hiringManagerId: UUID | None = None
@@ -129,6 +132,7 @@ async def list_jobs(
         expiry = f" AND {job_visible_sql(len(params))}"
     return await db.many(
         f"""SELECT j.id, j.ref_code, j.title, j.location, j.employment_type, j.status, j.created_at, j.closes_on,
+                   j.project, j.number_of_positions, j.reports_to,
                    d.name AS department, hm.full_name AS hiring_manager, rq.full_name AS requested_by_name,
                    (SELECT count(*)::int FROM candidates c WHERE c.job_id=j.id AND c.erased_at IS NULL) AS applicants,
                    (SELECT count(*)::int FROM evaluations e LEFT JOIN recommendation_overrides o ON o.candidate_id=e.candidate_id AND o.is_active
@@ -198,8 +202,12 @@ async def batch_import(
         try:
             if not title:
                 raise HTTPException(400, detail="Title is required")
-            req = normalise_requirements(item.requirements)
+            # Real vacancy adverts often carry no requirements columns; create those
+            # vacancies anyway and flag them rather than skipping the whole row.
+            req = normalise_requirements(item.requirements, require_skill=False)
             warnings = list(item.warnings)
+            if not req["technicalSkills"]:
+                warnings.append("No technical skills provided — add them on the vacancy before scoring")
             department_id = None
             if item.job.get("department"):
                 department_id = by_name.get(item.job["department"].strip().lower())
@@ -210,12 +218,15 @@ async def batch_import(
                 ref = await _next_ref(q)
                 new_id = await db.value(
                     """INSERT INTO jobs (ref_code, title, department_id, location, employment_type, description,
-                         status, requirements, created_by, closes_on)
-                       VALUES ($1,$2,$3,$4,$5,$6,'open',$7,$8,$9) RETURNING id""",
+                         status, requirements, created_by, closes_on, project, number_of_positions, reports_to)
+                       VALUES ($1,$2,$3,$4,$5,$6,'open',$7,$8,$9,$10,$11,$12) RETURNING id""",
                     [
                         ref, title, department_id, item.job.get("location") or "",
                         item.job.get("employmentType") or "Full-time", item.job.get("description") or "",
                         req, me.id, parse_date(item.job.get("closesOn")),
+                        item.job.get("project") or "",
+                        int(item.job.get("numberOfPositions") or 1),
+                        item.job.get("reportsTo") or "",
                     ],
                     q,
                 )
@@ -272,14 +283,16 @@ async def create_job(
         ref = await _next_ref(q)
         new_id = await db.value(
             """INSERT INTO jobs (ref_code, title, department_id, location, employment_type, description, status,
-                 requirements, weights_override, hiring_manager_id, requested_by, created_by, closes_on)
-               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) RETURNING id""",
+                 requirements, weights_override, hiring_manager_id, requested_by, created_by, closes_on,
+                 project, number_of_positions, reports_to)
+               VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16) RETURNING id""",
             [
                 ref, body.title, str(body.departmentId) if body.departmentId else None,
                 body.location or "", body.employmentType or "Full-time", body.description or "",
                 "requested" if is_request else "open", req, body.weightsOverride,
                 me.id if is_request else (str(body.hiringManagerId) if body.hiringManagerId else None),
                 me.id if is_request else None, me.id, parse_date(body.closesOn),
+                body.project or "", body.numberOfPositions or 1, body.reportsTo or "",
             ],
             q,
         )
@@ -329,7 +342,8 @@ async def update_job(
     async def run(q: db.Conn) -> None:
         await q.exec(
             """UPDATE jobs SET title=$2, department_id=$3, location=$4, employment_type=$5, description=$6,
-                 requirements=$7, weights_override=$8, hiring_manager_id=$9, closes_on=$10, updated_at=now()
+                 requirements=$7, weights_override=$8, hiring_manager_id=$9, closes_on=$10,
+                 project=$11, number_of_positions=$12, reports_to=$13, updated_at=now()
                WHERE id=$1""",
             [
                 jid, body.title, str(body.departmentId) if body.departmentId else None,
@@ -337,6 +351,7 @@ async def update_job(
                 req, body.weightsOverride,
                 str(body.hiringManagerId) if body.hiringManagerId else before["hiring_manager_id"],
                 parse_date(body.closesOn),
+                body.project or "", body.numberOfPositions or 1, body.reportsTo or "",
             ],
         )
         if body.recruiterIds is not None:
