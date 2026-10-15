@@ -79,7 +79,7 @@ export default function CandidateDetail() {
           <section className="panel stack">
             <div className="section-title" style={{ margin: 0 }}>Final recommendation</div>
             <div className="note brand"><Pill value={e.recommendation} /> {e.justification}</div>
-            {e.narrative && <div className="note"><b>AI summary.</b> {e.narrative}</div>}
+            {e.narrative && <div className="note"><b>{e.engine && e.engine !== 'rules' ? 'AI review.' : 'Review.'}</b> {e.narrative}</div>}
             {e.error && <div className="note warn">{e.error}</div>}
             {c.override && <div className="note"><b>Human override → {c.override.to_rec}</b> by {c.override.by_name} on {fmtDateTime(c.override.created_at)}<br />{c.override.reason}</div>}
             {can('evaluations.override') && (

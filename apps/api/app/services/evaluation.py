@@ -135,7 +135,9 @@ class EvaluationService:
             ))
             engine = "rules"
             model: str | None = None
-            narrative: str | None = None
+            # The rules engine always writes a job-specific suitability review;
+            # a configured AI provider may later replace it with its own prose.
+            narrative: str | None = result.get("review")
             discarded: list[Any] = []
             note: str | None = None
 
@@ -186,6 +188,14 @@ class EvaluationService:
                                     "strengths": [s["text"] for s in result["strengths"]],
                                     "gaps": [g["text"] for g in result["gaps"]],
                                     "hardRules": result["hardRuleFailures"],
+                                    "requirements": {
+                                        "mandatoryMet": [c["requirement"] for c in result["checks"] if c["category"] == "mandatory" and c["met"]],
+                                        "mandatoryMiss": [c["requirement"] for c in result["checks"] if c["category"] == "mandatory" and not c["met"]],
+                                        "technicalMet": [c["requirement"] for c in result["checks"] if c["category"] == "technical" and c["met"]],
+                                        "technicalMiss": [c["requirement"] for c in result["checks"] if c["category"] == "technical" and not c["met"]],
+                                        "certificationsMet": [c["requirement"] for c in result["checks"] if c["category"] == "certification" and c["met"]],
+                                        "certificationsMiss": [c["requirement"] for c in result["checks"] if c["category"] == "certification" and not c["met"]],
+                                    },
                                 },
                             )
                     except Exception as e:

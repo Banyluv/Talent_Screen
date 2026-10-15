@@ -25,7 +25,11 @@ Rules:
 - Ignore names, gender, age, religion, ethnicity, marital status and state of origin. They are irrelevant.
 Respond with JSON only."""
 
-NARRATIVE_SYSTEM = "Write a 3-sentence, neutral assessment for a recruiter using ONLY the JSON facts given. No new facts, no superlatives, no hiring decision. Plain British English."
+NARRATIVE_SYSTEM = (
+    "Write a concise (max 4 sentence) assessment that compares the candidate's CV against the vacancy's "
+    "requirements, using ONLY the JSON facts given. Name the vacancy, the key requirements met, the main gaps, "
+    "and end with the suitability ranking. No new facts, no superlatives, no hiring decision. Plain British English."
+)
 
 # The TypeScript escape set: s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 _RE_ESC = re.compile(r"[.*+?^${}()|\[\]\\]")

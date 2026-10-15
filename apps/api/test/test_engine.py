@@ -79,6 +79,19 @@ class TestScorer:
         # a missing mandatory requirement is the highest severity
         assert any(g["severity"] == "critical" and "Azure" in g["text"] for g in r["gaps"])
 
+    def test_review_is_job_specific_not_generic(self):
+        r = run("grace-udoh.txt")
+        assert r.get("review"), "expected a rules-generated suitability review"
+        # it must name the vacancy and the ranking, not just restate the score
+        assert JOBS[0]["title"] in r["review"]
+        assert r["recommendation"] in r["review"]
+        # it must tie the CV to the job description by naming a specific requirement
+        assert "Azure" in r["review"]
+
+    def test_review_reports_evidence_when_requirements_are_met(self):
+        r = run("chidinma-okafor.txt")
+        assert "Microsoft 365" in r["review"] and "Azure" in r["review"]
+
     def test_rejects_below_minimum_relevant_experience(self):
         r = run("blessing-akpan.txt", JOBS[1])
         assert r["recommendation"] == "Reject"
