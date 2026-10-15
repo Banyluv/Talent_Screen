@@ -59,6 +59,61 @@ SYNONYMS: dict[str, list[str]] = {
     "ngo": ["ngo", "non-governmental", "non-profit", "nonprofit", "development partner", "donor", "usaid", "pepfar", "cdc", "global fund", "implementing partner", "fcdo", "unicef", "world health organization"],
     "public health": ["public health", "hiv", "tb", "tuberculosis", "malaria", "maternal", "health programme", "health program", "epidemiolog"],
     "education": ["education", "school", "teaching", "curriculum", "learning"],
+    # -------------------------------------------------- public health / clinical
+    "hiv": ["hiv", "hiv/aids", "antiretroviral", "pmtct", "viral load"],
+    "tb": ["tb", "tuberculosis", "dots", "mdr-tb", "mdr tb"],
+    "tuberculosis": ["tuberculosis", "tb", "dots", "mdr-tb", "mdr tb"],
+    "malaria": ["malaria", "antimalarial", "vector control", "chemoprevention", "iptp", "smc"],
+    "mnch": ["mnch", "maternal", "newborn", "child health", "mch"],
+    "maternal health": ["maternal health", "maternal", "mnch", "antenatal", "postnatal", "reproductive health", "family planning"],
+    "epidemiology": ["epidemiology", "epidemiolog", "epidemic", "outbreak"],
+    "surveillance": ["surveillance", "surveill", "case finding", "early warning"],
+    "clinical services": ["clinical services", "clinical", "patient care", "case management"],
+    "pharmacy": ["pharmacy", "pharmaceutical", "pharmacist", "pharmacovigilance", "dispensing"],
+    "laboratory services": ["laboratory services", "laboratory", "lab", "lab services", "medical laboratory"],
+    "supply chain": ["supply chain", "logistics", "commodity", "lmis", "stock management", "inventory"],
+    "logistics": ["logistics", "supply chain", "commodity", "lmis", "stock management"],
+    "nursing": ["nursing", "nurse", "midwifery", "midwife"],
+    "midwifery": ["midwifery", "midwife", "nurse"],
+    "community health": ["community health", "community health worker", "outreach"],
+    "health informatics": ["health informatics", "emr", "electronic medical record", "health information"],
+    "emr": ["emr", "electronic medical record", "health informatics"],
+    # ------------------------------------------------------------- M&E / data
+    "monitoring": ["monitoring", "m&e", "monitoring and evaluation", "monitoring & evaluation"],
+    "evaluation": ["evaluation", "m&e", "monitoring and evaluation", "monitoring & evaluation"],
+    "m&e": ["m&e", "m and e", "m & e", "monitoring and evaluation", "monitoring & evaluation"],
+    "strategic information": ["strategic information", "si", "m&e", "data quality", "monitoring and evaluation"],
+    "statistics": ["statistics", "statistical", "biostatistics", "data analysis"],
+    "data analysis": ["data analysis", "analys", "analysis", "analytics", "statistics", "data analytics"],
+    "analytics": ["analytics", "analys", "data analysis", "business intelligence"],
+    "data management": ["data management", "database", "data entry", "data quality", "data systems"],
+    # --------------------------------------------------------- finance / admin
+    "accounting": ["accounting", "account", "accountancy", "bookkeeping"],
+    "financial management": ["financial management", "finance", "budget", "financial reporting", "budgeting"],
+    "budgeting": ["budgeting", "budget", "budget management", "budget monitoring"],
+    "reconciliation": ["reconciliation", "reconcil", "audit", "bank reconciliation"],
+    "administration": ["administration", "administrative", "office management", "admin support"],
+    "records management": ["records management", "record keeping", "record-keeping", "document management", "filing"],
+    # ------------------------------------------------------------------ IT ops
+    "hardware support": ["hardware support", "hardware", "computer hardware", "hardware troubleshooting"],
+    "software support": ["software support", "software", "application support", "software troubleshooting"],
+    "it support": ["it support", "technical support", "helpdesk", "help desk", "desktop support"],
+    "troubleshooting": ["troubleshooting", "troubleshoot", "resolved", "fixed", "root cause", "diagnos"],
+    "information technology": ["information technology", "ict", "computing", "computer science"],
+    # ------------------------------------------------------------- soft skills
+    "facilitation": ["facilitation", "facilitat", "training", "workshop", "moderat"],
+    "analytical": ["analytical", "analyt", "analysis", "data-driven"],
+    "coordination": ["coordination", "coordinat", "coordinated", "liaised", "liaise"],
+    "stakeholder engagement": ["stakeholder engagement", "stakeholder", "partner engagement", "stakeholders"],
+    "organizational": ["organizational", "organisational", "organised", "organized", "planning"],
+    "documentation": ["documentation", "document", "record", "reporting"],
+    "training": ["training", "train", "mentored", "coached", "facilitated"],
+    "integrity": ["integrity", "ethical", "confidentiality", "honest"],
+    "professional maturity": ["professional maturity", "maturity", "professionalism"],
+    "strategic thinking": ["strategic thinking", "strategic", "strategy", "strategic planning"],
+    "crisis management": ["crisis management", "crisis", "emergency response", "emergency preparedness"],
+    "judgment": ["judgment", "judgement", "decision making", "decision-making"],
+    "interpersonal": ["interpersonal", "people skills", "relationship building"],
 }
 
 # The TypeScript escape set: s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
@@ -69,9 +124,15 @@ def _re_esc(s: str) -> str:
     return _RE_ESC.sub(lambda m: "\\" + m.group(0), s)
 
 
+# Complete words that are dangerous as prefixes of unrelated longer words.
+# These must match as whole words even though they exceed the 4-character strict
+# limit ("excel" would otherwise match "excellent").
+WHOLE_WORD: frozenset[str] = frozenset({"excel", "access"})
+
+
 def term_regex(term: str) -> re.Pattern[str]:
     t = term.lower()
-    strict = len(t.strip()) <= 4
+    strict = len(t.strip()) <= 4 or t in WHOLE_WORD
     return re.compile("(^|[^a-z0-9])" + _re_esc(t) + ("(?![a-z0-9])" if strict else ""), re.I)
 
 

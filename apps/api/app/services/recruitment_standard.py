@@ -103,6 +103,7 @@ def _fields_of_study(low: str) -> list[str]:
         p = p.strip().lower().strip(".")
         p = re.sub(r"^(a|an|the)\s+", "", p)
         p = re.sub(r"\s+(is required|required|or equivalent|degree)$", "", p)
+        p = p.strip().rstrip("-/")
         if len(p) > 2 and "related" not in p and p not in fields:
             fields.append(p)
     return fields
