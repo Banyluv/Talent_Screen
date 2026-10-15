@@ -28,7 +28,7 @@ param(
     [switch]$Seed,
     [int]$ApiPort = 8000,
     [int]$WebPort = 5173,
-    [string]$DbUrl = 'talentscreen@127.0.0.1:5432/talentscreen',
+    [string]$DbUrl = 'postgresql://talentscreen@127.0.0.1:5432/talentscreen',
     [string]$PublicUrl = 'http://localhost:5173'
 )
 
@@ -101,7 +101,7 @@ if (Test-Path $envFile) {
     }
 }
 
-$dbDefault = 'talentscreen@127.0.0.1:5432/talentscreen'
+$dbDefault = 'postgresql://talentscreen@127.0.0.1:5432/talentscreen'
 $env:DATABASE_URL    = if ($DbUrl -ne $dbDefault) { $DbUrl } elseif ($env:DATABASE_URL) { $env:DATABASE_URL } else { $dbDefault }
 $env:API_PORT        = "$ApiPort"
 $env:PUBLIC_URL      = $PublicUrl
@@ -127,7 +127,12 @@ if ($Seed) {
 }
 Write-Host 'Applying migrations...'
 Push-Location $apiDir
-try { & $python -m app.migrate } finally { Pop-Location }
+try {
+    # Run through cmd so Python's stderr logging is merged into stdout; PowerShell 5.1
+    # would otherwise surface every log line as a terminating error.
+    & $env:ComSpec /c "`"$python`" -m app.migrate 2>&1"
+    if ($LASTEXITCODE -ne 0) { throw 'Migrations failed' }
+} finally { Pop-Location }
 Remove-Item Env:SEED_DEMO_DATA -ErrorAction SilentlyContinue
 
 Write-Host "Starting API on :$ApiPort (logs: .logs/api.log)..."
