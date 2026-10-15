@@ -10,6 +10,10 @@ from .parser import merged_years, seniority
 
 RECOMMENDATIONS: list[str] = ["Shortlist", "Consider", "Hold", "Reject"]
 
+# Reference point shown alongside a candidate's score: the typical fit for this
+# domain's candidate pool (ported from the legacy keyword extractor).
+INDUSTRY_BENCHMARK = 70
+
 WEIGHT_KEYS: list[str] = ["qualifications", "technical", "experience", "certifications", "preferred", "progression"]
 
 # Education levels used for qualification matching.
@@ -145,6 +149,26 @@ def build_review(facts: dict) -> str:
     return " ".join(s)
 
 
+def build_recommendations(recommendation: str, skill_gaps: dict[str, list[str]]) -> list[str]:
+    """Actionable, decision-support recommendations for a recruiter."""
+    out: list[str] = []
+    if recommendation == "Shortlist":
+        out.append("Strong fit — advance to the interview shortlist.")
+        out.append("Verify certifications and references before the interview.")
+    elif recommendation == "Consider":
+        out.append("Partial fit — include in the interview pool and probe the gaps below.")
+    elif recommendation == "Hold":
+        out.append("Below target — keep on file and revisit only if the pool is thin.")
+    else:
+        out.append("Below the hold threshold — not recommended for this vacancy.")
+        out.append("Consider for adjacent or junior roles where the gaps are less material.")
+    if skill_gaps.get("critical"):
+        out.append(f"Critical gaps: {_oxford(skill_gaps['critical'])}.")
+    if skill_gaps.get("moderate"):
+        out.append(f"Moderate gaps: {_oxford(skill_gaps['moderate'])}.")
+    return out
+
+
 def score(input: dict) -> dict:
     cv = input["cv"]
     req = input["req"]
@@ -167,11 +191,21 @@ def score(input: dict) -> dict:
     def check(category: str, requirement: str) -> dict:
         r = find_evidence(cv["lower"], ev_lines, requirement)
         if r["hit"]:
-            return {"category": category, "requirement": requirement, "met": True, "evidence": r["line"], "source": "rules"}
+            canonical = requirement.strip().lower()
+            return {
+                "category": category, "requirement": requirement, "met": True,
+                "evidence": r["line"], "source": "rules",
+                "matchType": "exact" if r.get("alias") == canonical else "synonym",
+                "confidence": 1.0 if r.get("alias") == canonical else 0.85,
+            }
         model = input.get("model")
         m = model.get(f"{category}::{requirement}") if model else None
         if m and m.get("met") and m.get("evidence"):
-            return {"category": category, "requirement": requirement, "met": True, "evidence": m["evidence"], "source": "llm"}
+            return {
+                "category": category, "requirement": requirement, "met": True,
+                "evidence": m["evidence"], "source": "llm",
+                "matchType": "semantic", "confidence": 0.7,
+            }
         return {"category": category, "requirement": requirement, "met": False, "source": "llm" if m else "rules"}
 
     tech = [check("technical", s) for s in req["technicalSkills"]]
@@ -361,6 +395,31 @@ def score(input: dict) -> dict:
         "qualification": qual_desc,
     })
 
+    # ---- keyword-level match summary: one pass over the checks.
+    all_checks = [*mandatory, *tech, *certs, *soft, *pref_skills, *industry, *nice, *pref_qual]
+    skill_gaps: dict[str, list[str]] = {"critical": [], "moderate": [], "minor": []}
+    keyword_matches: list[dict] = []
+    missing_keywords: list[str] = []
+    for c in all_checks:
+        if c["met"]:
+            keyword_matches.append({
+                "keyword": c["requirement"],
+                "matchType": c.get("matchType") or "exact",
+                "confidence": c.get("confidence", 1.0),
+            })
+        else:
+            missing_keywords.append(c["requirement"])
+            # "qualification" checks here are *preferred* qualifications, so minor.
+            severity = "minor" if c["category"] == "qualification" else gap_severity(c["category"], c["requirement"])
+            skill_gaps[severity].append(c["requirement"])
+    match_summary = {
+        "industryBenchmark": INDUSTRY_BENCHMARK,
+        "keywordMatches": keyword_matches,
+        "missingKeywords": missing_keywords,
+        "skillGapAnalysis": skill_gaps,
+        "recommendations": build_recommendations(recommendation, skill_gaps),
+    }
+
     return {
         "overall": overall,
         "recommendation": recommendation,
@@ -369,11 +428,12 @@ def score(input: dict) -> dict:
         "relevantYears": _round1(relevant_years),
         "qualificationMatch": qual,
         "skillsMatch": components["technical"],
-        "checks": [*mandatory, *tech, *certs, *soft, *pref_skills, *industry, *nice, *pref_qual],
+        "checks": all_checks,
         "strengths": strengths,
         "gaps": gaps,
         "hardRuleFailures": hard,
         "justification": just,
         "review": review,
+        "matchSummary": match_summary,
         "roles": sorted_roles,
     }

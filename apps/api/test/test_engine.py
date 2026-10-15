@@ -92,6 +92,16 @@ class TestScorer:
         r = run("chidinma-okafor.txt")
         assert "Microsoft 365" in r["review"] and "Azure" in r["review"]
 
+    def test_match_summary_has_gaps_matches_and_recommendations(self):
+        r = run("grace-udoh.txt")
+        ms = r["matchSummary"]
+        assert ms["industryBenchmark"] == 70
+        assert ms["recommendations"], "expected actionable recommendations"
+        assert "Azure" in ms["missingKeywords"]
+        assert "Azure" in ms["skillGapAnalysis"]["critical"]
+        assert all(m["matchType"] in {"exact", "synonym", "semantic"} for m in ms["keywordMatches"])
+        assert {m["keyword"] for m in ms["keywordMatches"]} >= {"Microsoft 365"}
+
     def test_rejects_below_minimum_relevant_experience(self):
         r = run("blessing-akpan.txt", JOBS[1])
         assert r["recommendation"] == "Reject"

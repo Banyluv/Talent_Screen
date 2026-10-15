@@ -214,13 +214,14 @@ class EvaluationService:
                          recommendation=$5, component_scores=$6, weights=$7, thresholds=$8, total_years=$9,
                          relevant_years=$10, qualification_match=$11, skills_match=$12, requirement_checks=$13,
                          strengths=$14, gaps=$15, hard_rule_failures=$16, justification=$17, narrative=$18,
-                         llm_discarded=$19, error=$20, completed_at=now() WHERE id=$1""",
+                         llm_discarded=$19, error=$20, match_summary=$21, completed_at=now() WHERE id=$1""",
                     [
                         ev["id"], engine, model, result["overall"], result["recommendation"],
                         result["components"], cfg["weights"], cfg["thresholds"], result["totalYears"],
                         result["relevantYears"], result["qualificationMatch"], result["skillsMatch"],
                         result["checks"], result["strengths"], result["gaps"], result["hardRuleFailures"],
                         result["justification"], narrative, discarded, note,
+                        result.get("matchSummary"),
                     ],
                 )
                 profile = {

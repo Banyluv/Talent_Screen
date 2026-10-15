@@ -86,6 +86,10 @@ CRITICAL_PATTERNS: tuple[re.Pattern, ...] = tuple(re.compile(p, re.I) for p in (
     r"\b(leadership|strategy|budget|compliance|audit|governance)\b",
     # hard exclusions the scorer itself flags
     r"\b(mandatory|below\s|no\srecognisable|not\sevidenced)\b",
+    # software engineering & cloud (from the legacy keyword extractor)
+    r"\b(javascript|typescript|java|golang|rust|ruby|swift|kotlin|php|scala)\b",
+    r"\b(terraform|devops|jenkins|machine\s?learning|artificial\s?intelligence|data\s?science|deep\s?learning|tensorflow|pytorch)\b",
+    r"\b(cryptography|penetration\s?testing|gdpr|iso\s?27001|database\s?design|data\s?model(?:l)?ing|data\s?warehouse|etl)\b",
 ))
 
 MODERATE_PATTERNS: tuple[re.Pattern, ...] = tuple(re.compile(p, re.I) for p in (
@@ -93,6 +97,12 @@ MODERATE_PATTERNS: tuple[re.Pattern, ...] = tuple(re.compile(p, re.I) for p in (
     r"\b(procurement|payroll|sage|quickbooks|ifrs|finance)\b",
     r"\b(stakeholder|project\s?management|proposal|grant)\b",
     r"\b(certification|estimated|field\s?of\s?study)\b",
+    # frameworks, databases & delivery (from the legacy keyword extractor)
+    r"\b(react|angular|vue|next\.?js|node\.?js|express|django|flask|spring\s?boot)\b",
+    r"\b(mongodb|redis|elasticsearch|rabbitmq|kafka|graphql|rest\s?api|microservices)\b",
+    r"\b(agile|scrum|kanban|jira|confluence|unit\s?test|integration\s?test)\b",
+    r"\b(presentation|negotiation|mentoring|coaching|training)\b",
+    r"\b(figma|sketch|ui\s?/?\s?ux|user\s?experience|accessibility)\b",
 ))
 
 

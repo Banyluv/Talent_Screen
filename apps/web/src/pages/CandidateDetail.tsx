@@ -80,6 +80,10 @@ export default function CandidateDetail() {
             <div className="section-title" style={{ margin: 0 }}>Final recommendation</div>
             <div className="note brand"><Pill value={e.recommendation} /> {e.justification}</div>
             {e.narrative && <div className="note"><b>{e.engine && e.engine !== 'rules' ? 'AI review.' : 'Review.'}</b> {e.narrative}</div>}
+            {e.match_summary?.industryBenchmark != null && <div className="muted small">Industry benchmark: {e.match_summary.industryBenchmark}</div>}
+            {e.match_summary?.recommendations?.length > 0 && (
+              <div className="note"><b>Recommendations</b><ul className="ev" style={{ marginTop: 8 }}>{e.match_summary.recommendations.map((r: string, i: number) => <li key={i}>{r}</li>)}</ul></div>
+            )}
             {e.error && <div className="note warn">{e.error}</div>}
             {c.override && <div className="note"><b>Human override → {c.override.to_rec}</b> by {c.override.by_name} on {fmtDateTime(c.override.created_at)}<br />{c.override.reason}</div>}
             {can('evaluations.override') && (
