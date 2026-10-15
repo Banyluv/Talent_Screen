@@ -150,6 +150,10 @@ legend { font-weight: 600; font-size: .85rem; padding: 0 4px }
 .assess b { font: 500 1.15rem var(--f-mono) }
 ul.ev { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 7px }
 ul.ev li small { display: block; color: var(--muted); font-style: italic }
+ul.ev li.gap-critical { color: var(--crimson); font-weight: 600 }
+ul.ev li.gap-critical::marker { color: var(--crimson) }
+ul.ev li.gap-moderate { color: var(--amber) }
+ul.ev li.gap-moderate::marker { color: var(--amber) }
 .section-title { font-size: .78rem; text-transform: uppercase; letter-spacing: .07em; color: var(--muted); font-weight: 600; margin-bottom: 8px }
 .hbar { display: grid; grid-template-columns: minmax(90px, 160px) 1fr 40px; gap: 10px; align-items: center; font-size: .86rem }
 .donut { width: 140px; height: 140px; border-radius: 50%; flex: none; position: relative }

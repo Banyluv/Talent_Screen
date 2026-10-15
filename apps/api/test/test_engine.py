@@ -72,6 +72,13 @@ class TestScorer:
         assert r["recommendation"] == "Reject"
         assert re.search(r"Mandatory requirement not evidenced: Azure", r["hardRuleFailures"][0])
 
+    def test_gaps_carry_a_severity_for_prioritisation(self):
+        r = run("grace-udoh.txt")
+        assert r["gaps"], "expected at least one gap"
+        assert all("severity" in g and g["severity"] in {"critical", "moderate", "minor"} for g in r["gaps"])
+        # a missing mandatory requirement is the highest severity
+        assert any(g["severity"] == "critical" and "Azure" in g["text"] for g in r["gaps"])
+
     def test_rejects_below_minimum_relevant_experience(self):
         r = run("blessing-akpan.txt", JOBS[1])
         assert r["recommendation"] == "Reject"

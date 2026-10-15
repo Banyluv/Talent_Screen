@@ -73,7 +73,7 @@ export default function CandidateDetail() {
             <section className="panel"><div className="section-title">Strengths</div>
               <ul className="ev">{e.strengths.map((s: any, i: number) => <li key={i}>{s.text}{s.evidence && <small>“{s.evidence}”</small>}</li>)}{!e.strengths.length && <li className="muted">None identified</li>}</ul></section>
             <section className="panel"><div className="section-title">Gaps</div>
-              <ul className="ev">{e.gaps.map((s: any, i: number) => <li key={i}>{s.text}{s.why && <small>{s.why}</small>}</li>)}{!e.gaps.length && <li className="muted">No material gaps</li>}</ul></section>
+              <ul className="ev">{e.gaps.map((s: any, i: number) => <li key={i} className={s.severity === 'critical' ? 'gap-critical' : s.severity === 'moderate' ? 'gap-moderate' : ''}>{s.text}{s.why && <small>{s.why}</small>}</li>)}{!e.gaps.length && <li className="muted">No material gaps</li>}</ul></section>
           </div>
 
           <section className="panel stack">

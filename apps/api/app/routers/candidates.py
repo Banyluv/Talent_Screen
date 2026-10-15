@@ -316,6 +316,7 @@ async def ranking(
     import re
 
     distinctive = re.compile(r"^(Holds|Evidence|Sector|Clear)")
+    severity_rank = {"critical": 0, "moderate": 1, "minor": 2}
     rank = 0
     out = []
     for r in rows:
@@ -328,7 +329,7 @@ async def ranking(
         # lead with distinctive evidence (skills, certifications) rather than baseline facts
         strengths.sort(key=lambda s: 0 if distinctive.match(s.get("text") or "") else 1)
         r["key_strengths"] = [s.get("text") for s in strengths[:3]]
-        r["key_gaps"] = [g.get("text") for g in (r.get("gaps") or [])[:3]]
+        r["key_gaps"] = [g.get("text") for g in sorted((r.get("gaps") or []), key=lambda g: severity_rank.get(g.get("severity"), 1))[:3]]
         r.pop("strengths", None)
         r.pop("gaps", None)
         out.append(r)

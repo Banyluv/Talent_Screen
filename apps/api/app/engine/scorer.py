@@ -5,6 +5,7 @@ import math
 import re
 
 from .aliases import find_evidence, term_regex
+from .keywords import STOP_WORDS, gap_severity
 from .parser import merged_years, seniority
 
 RECOMMENDATIONS: list[str] = ["Shortlist", "Consider", "Hold", "Reject"]
@@ -20,9 +21,6 @@ LEVELS: dict[float, str] = {
     4: "Master's",
     5: "Doctorate",
 }
-
-STOP = {"senior", "junior", "officer", "administrator", "assistant", "manager", "with", "and", "the", "for", "lead", "head", "associate", "specialist"}
-
 
 def _round(n: float) -> int:
     """JavaScript's Math.round (half-up)."""
@@ -71,6 +69,19 @@ def _item(text: str, evidence: str | None = None, why: str | None = None) -> dic
     return out
 
 
+def _gap(
+    text: str,
+    category: str | None = None,
+    severity: str | None = None,
+    evidence: str | None = None,
+    why: str | None = None,
+) -> dict:
+    """A gap item carrying a severity so the UI can prioritise it."""
+    out = _item(text, evidence, why)
+    out["severity"] = severity or gap_severity(category, text)
+    return out
+
+
 def score(input: dict) -> dict:
     cv = input["cv"]
     req = input["req"]
@@ -110,7 +121,7 @@ def score(input: dict) -> dict:
 
     # ---- relevant experience: roles that mention ≥2 of the job's skills or share a title keyword
     skill_set = [*req["technicalSkills"], *req["preferredSkills"]]
-    title_words = [x for x in re.split(r"[^a-z0-9&]+", input["jobTitle"].lower()) if len(x) > 2 and x not in STOP]
+    title_words = [x for x in re.split(r"[^a-z0-9&]+", input["jobTitle"].lower()) if len(x) > 2 and x not in STOP_WORDS]
 
     def is_relevant(role: dict) -> bool:
         t = (role["title"] + "\n" + role["text"]).lower()
@@ -200,15 +211,16 @@ def score(input: dict) -> dict:
             )
         )
         if not field_hit:
-            gaps.append(_item(f"Field of study does not match: {', '.join(req['fieldsOfStudy'])}"))
+            gaps.append(_gap(f"Field of study does not match: {', '.join(req['fieldsOfStudy'])}", severity="moderate"))
     else:
         gaps.append(
-            _item(f"Highest qualification ({_lvl_name(level)}) is below the required {_lvl_name(req['minQualificationLevel'])}" if level else "No recognisable academic qualification found")
+            _gap(f"Highest qualification ({_lvl_name(level)}) is below the required {_lvl_name(req['minQualificationLevel'])}" if level else "No recognisable academic qualification found",
+                 category="qualification")
         )
     if exp_years >= minimum:
         strengths.append(_item(f"{_num(exp_years)} years {rules['experienceBasis']} experience (minimum {_num(minimum)}, preferred {_num(pref)})"))
     else:
-        gaps.append(_item(f"{_num(exp_years)} years {rules['experienceBasis']} experience against a {_num(minimum)}-year minimum"))
+        gaps.append(_gap(f"{_num(exp_years)} years {rules['experienceBasis']} experience against a {_num(minimum)}-year minimum", severity="critical"))
     for c in [c for c in tech if c["met"]]:
         strengths.append(_item(f"Evidence of {c['requirement']}", c.get("evidence")))
     for c in [c for c in certs if c["met"]]:
@@ -218,21 +230,22 @@ def score(input: dict) -> dict:
     if len(sorted_roles) >= 2 and seniority(sorted_roles[-1]["title"]) > seniority(sorted_roles[0]["title"]):
         strengths.append(_item("Clear upward career progression", f"{sorted_roles[0]['title']} → {sorted_roles[-1]['title']}"))
     for c in [c for c in mandatory if not c["met"]]:
-        gaps.append(_item(f"Mandatory: no evidence of {c['requirement']}"))
+        gaps.append(_gap(f"Mandatory: no evidence of {c['requirement']}", category="mandatory"))
     for c in [c for c in tech if not c["met"] and c["requirement"] not in req["mandatory"]]:
-        gaps.append(_item(f"No evidence of {c['requirement']}"))
+        gaps.append(_gap(f"No evidence of {c['requirement']}", category="technical"))
     for c in [c for c in certs if not c["met"]]:
-        gaps.append(_item(f"Certification not listed: {c['requirement']}"))
+        gaps.append(_gap(f"Certification not listed: {c['requirement']}", category="certification"))
     if len(sorted_roles) >= 3 and avg_tenure < 1.2:
-        gaps.append(_item(f"Short average tenure ({_fixed1(avg_tenure)} years per role)"))
+        gaps.append(_gap(f"Short average tenure ({_fixed1(avg_tenure)} years per role)", severity="minor"))
     if not roles:
-        gaps.append(_item("Employment dates could not be read; experience was estimated"))
+        gaps.append(_gap("Employment dates could not be read; experience was estimated", severity="moderate"))
 
     ai_matched = [c for c in [*mandatory, *tech, *certs] if c["met"] and c["source"] == "llm"]
     if ai_matched:
         gaps.append(
-            _item(
+            _gap(
                 f"Confirm AI-matched evidence for: {', '.join(c['requirement'] for c in ai_matched)}",
+                severity="moderate",
                 why="Matched by the language model, not by an exact keyword. The quoted line is real but its relevance needs a human check.",
             )
         )
