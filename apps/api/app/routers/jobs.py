@@ -14,6 +14,10 @@ from ..deps import audit_context, current_user, require
 from ..domain import WEIGHT_KEYS, AuditContext, AuthUser
 from ..services import vacancy_import
 from ..services.evaluation import service as evaluations
+from ..services.recruitment_standard import (
+    normalise_level_of_effort,
+    parse_minimum_recruitment_standard,
+)
 from ..validation import parse_date
 
 router = APIRouter(prefix="/jobs", tags=["vacancies"])
@@ -206,10 +210,21 @@ async def batch_import(
                 raise HTTPException(400, detail="Title is required")
             # Real vacancy adverts often carry no requirements columns; create those
             # vacancies anyway and flag them rather than skipping the whole row.
-            req = normalise_requirements(item.requirements, require_skill=False)
+            # The ECEWS "Minimum Recruitment Standard" section is parsed into the
+            # scoring criteria so the CV evaluation is based on the actual advert.
+            standard = (item.job.get("minimumRecruitmentStandard") or "").strip()
+            if standard:
+                merged = parse_minimum_recruitment_standard(standard)
+                merged.update(item.requirements)  # explicit columns still win
+            else:
+                merged = item.requirements
+            req = normalise_requirements(merged, require_skill=False)
             warnings = list(item.warnings)
             if not req["technicalSkills"]:
                 warnings.append("No technical skills provided — add them on the vacancy before scoring")
+            # Level of Effort ("Full Time") is the advert's employment type.
+            if item.job.get("levelOfEffort") and not item.job.get("employmentType"):
+                item.job["employmentType"] = normalise_level_of_effort(item.job["levelOfEffort"])
             department_id = None
             if item.job.get("department"):
                 department_id = by_name.get(item.job["department"].strip().lower())

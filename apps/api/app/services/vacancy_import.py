@@ -111,6 +111,74 @@ SECTION_FIELDS: dict[str, str] = {
     "minimumrecruitmentstandard": "minimumRecruitmentStandard",
 }
 
+# Front/back matter that ends the advert content in an ECEWS document.
+_BACK_MATTER = {
+    "note", "methodofapplication", "applicationmust", "candidatesareadvised",
+    "eligiblefemale", "onlyshortlisted", "interestedandqualified",
+}
+
+_ORDERING = re.compile(r"^\d+\s*\.?$")
+
+
+def _clean_line(text: str) -> str:
+    """Normalise a paragraph: NBSPs → spaces, strip list glyphs, collapse whitespace."""
+    t = text.replace("\xa0", " ").strip()
+    t = re.sub(r"^[\u00b7\u2022\u25aa\u2023\u2013\u2014*\-]\s*", "", t).strip()
+    return re.sub(r"\s+", " ", t)
+
+
+def _parse_ecwes(paragraphs: list[tuple[str, str]]) -> list[Item]:
+    """Parse the four-section ECEWS advert format.
+
+    Each vacancy is a "Job Title" label followed by its title, then "Level of
+    Effort", "Job Description" and "Minimum Recruitment Standard" sections whose
+    lines accumulate verbatim into the corresponding field. Numbered list markers
+    ("1.", "33.") and trailing application notes are ignored.
+    """
+    items: list[Item] = []
+    current: Item | None = None
+    open_field: str | None = None
+
+    for text, _style in paragraphs:
+        t = _clean_line(text)
+        if not t or _ORDERING.match(t):
+            continue
+        # Colon form ("Level of Effort: 100%") as a convenience.
+        key, value = _split_label(t) if ":" in t else (None, "")
+        if key:
+            if key == "title":
+                current = Item(f"Section {len(items) + 1}")
+                items.append(current)
+                open_field = "title"
+                if value:
+                    current.job["title"] = value
+                    open_field = None
+            else:
+                open_field = key
+                if value and current is not None:
+                    current.set(key, value)
+            continue
+        section = SECTION_FIELDS.get(normalise_header(t))
+        if section:
+            if section == "title":
+                current = Item(f"Section {len(items) + 1}")
+                items.append(current)
+                open_field = "title"
+            else:
+                open_field = section
+            continue
+        if normalise_header(t) in _BACK_MATTER:
+            break
+        if current is None:
+            continue
+        if open_field == "title":
+            current.job["title"] = t
+            open_field = None
+        elif open_field:
+            previous = current.job.get(open_field) or ""
+            current.set(open_field, f"{previous}\n{t}" if previous else t)
+    return items
+
 # Human-readable header for each canonical key, in template order.
 TEMPLATE_COLUMNS: list[tuple[str, str, str]] = [
     ("title", "Title", "Data Engineer"),
@@ -330,6 +398,14 @@ def parse_document(data: bytes) -> list[Item]:
         for p in document.paragraphs
     ]
     has_heading = any(style.startswith("heading") for text, style in paragraphs if text)
+
+    # A "Minimum Recruitment Standard" label (no colon) marks the ECEWS advert
+    # format. Route it to the dedicated parser before the generic heading/label logic.
+    if any(
+        t and ":" not in t and normalise_header(t) == "minimumrecruitmentstandard"
+        for t, _ in paragraphs
+    ):
+        return _parse_ecwes(paragraphs)
 
     items: list[Item] = []
     current: Item | None = None
