@@ -50,7 +50,16 @@ FIELD_ALIASES: dict[str, str] = {
     "supervisor": "reportsTo", "linemanager": "reportsTo",
     "employmenttype": "employmentType", "type": "employmentType", "jobtype": "employmentType",
     "contract": "employmentType", "contracttype": "employmentType",
+    # ECEWS vacancy-advert section: "LEVEL OF EFFORT"
+    "levelofeffort": "levelOfEffort", "effortlevel": "levelOfEffort", "loe": "levelOfEffort",
+    "effort": "levelOfEffort",
     "description": "description", "jobdescription": "description", "summary": "description",
+    # ECEWS vacancy-advert section: "MINIMUM RECRUITMENT STANDARD"
+    "minimumrecruitmentstandard": "minimumRecruitmentStandard",
+    "minrecruitmentstandard": "minimumRecruitmentStandard",
+    "recruitmentstandard": "minimumRecruitmentStandard",
+    "minimumstandard": "minimumRecruitmentStandard",
+    "minimumrecruitment": "minimumRecruitmentStandard",
     "closeson": "closesOn", "closingdate": "closesOn", "deadline": "closesOn",
     "applicationsclose": "closesOn", "closing": "closesOn",
     # requirements
@@ -84,7 +93,7 @@ FIELD_ALIASES: dict[str, str] = {
 }
 
 JOB_FIELDS = ("title", "department", "location", "employmentType", "description", "closesOn",
-              "project", "reportsTo")
+              "project", "reportsTo", "levelOfEffort", "minimumRecruitmentStandard")
 JOB_NUMBER_FIELDS = ("numberOfPositions",)
 REQUIREMENT_LIST_FIELDS = (
     "fieldsOfStudy", "requiredQualifications", "preferredQualifications", "requiredCertifications",
@@ -92,6 +101,15 @@ REQUIREMENT_LIST_FIELDS = (
 )
 REQUIREMENT_TEXT_FIELDS = ("locationRequirements",)
 REQUIREMENT_NUMBER_FIELDS = ("minYears", "preferredYears")
+
+# The four labels every ECEWS vacancy advert carries. In a Word document they act
+# as section markers: content between them is captured verbatim into that field.
+SECTION_FIELDS: dict[str, str] = {
+    "jobtitle": "title",
+    "levelofeffort": "levelOfEffort",
+    "jobdescription": "description",
+    "minimumrecruitmentstandard": "minimumRecruitmentStandard",
+}
 
 # Human-readable header for each canonical key, in template order.
 TEMPLATE_COLUMNS: list[tuple[str, str, str]] = [
@@ -102,8 +120,10 @@ TEMPLATE_COLUMNS: list[tuple[str, str, str]] = [
     ("numberOfPositions", "Number of Positions", "3"),
     ("reportsTo", "Reports To", "State Director"),
     ("employmentType", "Employment Type", "Full-time"),
+    ("levelOfEffort", "Level of Effort", "100%"),
     ("closesOn", "Closes On", "2026-12-31"),
     ("description", "Description", "Build and maintain the programme data warehouse."),
+    ("minimumRecruitmentStandard", "Minimum Recruitment Standard", "BSc in a relevant field; at least 3 years experience"),
     ("minQualificationLevel", "Min Qualification Level", "3"),
     ("fieldsOfStudy", "Fields of Study", "Computer Science; Statistics"),
     ("requiredQualifications", "Required Qualifications", "BSc Computer Science or related"),
@@ -327,6 +347,15 @@ def parse_document(data: bytes) -> list[Item]:
         for text, style in paragraphs:
             if not text:
                 continue
+            # The four ECEWS advert labels are section markers, not new vacancies.
+            section = SECTION_FIELDS.get(normalise_header(text))
+            if section:
+                if section == "title":
+                    current = start()
+                    open_field = None
+                else:
+                    open_field = section
+                continue
             if style.startswith("heading"):
                 current = start()
                 current.job["title"] = text
@@ -358,6 +387,15 @@ def parse_document(data: bytes) -> list[Item]:
                 continue
             if _is_separator(text):
                 expect_title = True
+                continue
+            # The four ECEWS advert labels are section markers, not titles or text.
+            section = SECTION_FIELDS.get(normalise_header(text))
+            if section:
+                if section == "title":
+                    current = start()
+                    open_field = None
+                else:
+                    open_field = section
                 continue
             if expect_title:
                 current = start()
@@ -448,8 +486,10 @@ def build_template_xlsx() -> bytes:
     notes.append(["Department", "Must match an existing department name. Left blank if it does not match."])
     notes.append(["Project / Number of Positions / Reports To", "Optional. Stored on the vacancy and shown on its page (ECEWS vacancy-advert columns)."])
     notes.append(["Employment Type", "Full-time, Part-time, Contract, Consultancy, Internship or Temporary. Defaults to Full-time."])
+    notes.append(["Level of Effort", "Free text, e.g. 100% (ECEWS vacancy-advert column)."])
     notes.append(["Closes On", "A date, e.g. 2026-12-31. Optional."])
     notes.append(["Description", "Free text. Line breaks are preserved."])
+    notes.append(["Minimum Recruitment Standard", "Free text describing the minimum criteria, kept verbatim (not parsed into scoring fields)."])
     notes.append(["Min Qualification Level", "A number 1-5 (3.5 = Postgraduate Diploma), or a name such as Bachelor's or Master's."])
     notes.append(["Min Years / Preferred Years", "Numbers. Preferred must be at least the minimum."])
     notes.append(["Skill / list columns", "Separate items with a semicolon, a comma or a new line inside the cell."])
@@ -485,6 +525,7 @@ def build_template_docx() -> bytes:
     document.add_paragraph("Number of Positions: 3")
     document.add_paragraph("Reports To: State Director")
     document.add_paragraph("Employment Type: Full-time")
+    document.add_paragraph("Level of Effort: 100%")
     document.add_paragraph("Closes On: 2026-12-31")
     document.add_paragraph("Min Qualification Level: Bachelor's")
     document.add_paragraph("Fields of Study: Computer Science; Statistics")
@@ -500,6 +541,9 @@ def build_template_docx() -> bytes:
     document.add_paragraph("Mandatory:")
     document.add_paragraph("Willing to travel to field sites", style="List Bullet")
     document.add_paragraph("Description: Build and maintain the programme data warehouse.")
+    document.add_paragraph("Minimum Recruitment Standard:")
+    document.add_paragraph("Bachelor's degree in a relevant field", style="List Bullet")
+    document.add_paragraph("At least 3 years experience", style="List Bullet")
 
     document.add_heading("Programme Officer", level=1)
     document.add_paragraph("Department: Programmes")

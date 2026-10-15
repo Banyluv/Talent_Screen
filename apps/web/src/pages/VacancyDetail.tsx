@@ -40,6 +40,12 @@ export default function VacancyDetail() {
           <section className="panel stack">
             <h2>Role</h2>
             <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{job.description || <span className="muted">No description.</span>}</p>
+            {job.minimum_recruitment_standard && (
+              <div>
+                <div className="section-title" style={{ marginBottom: 4 }}>Minimum recruitment standard</div>
+                <p className="small" style={{ margin: 0, whiteSpace: 'pre-wrap' }}>{job.minimum_recruitment_standard}</p>
+              </div>
+            )}
             <div className="list small">
               <div><span className="muted" style={{ width: 170 }}>Minimum qualification</span><b>{LEVELS[String(r.minQualificationLevel)]}</b></div>
               <div><span className="muted" style={{ width: 170 }}>Fields of study</span><span>{r.fieldsOfStudy.join(', ') || 'Any'}</span></div>
@@ -47,6 +53,7 @@ export default function VacancyDetail() {
               {job.project && <div><span className="muted" style={{ width: 170 }}>Project</span><span>{job.project}</span></div>}
               {job.number_of_positions > 1 && <div><span className="muted" style={{ width: 170 }}>Positions</span><b>{job.number_of_positions}</b></div>}
               {job.reports_to && <div><span className="muted" style={{ width: 170 }}>Reports to</span><span>{job.reports_to}</span></div>}
+              {job.level_of_effort && <div><span className="muted" style={{ width: 170 }}>Level of effort</span><span>{job.level_of_effort}</span></div>}
               {r.locationRequirements && <div><span className="muted" style={{ width: 170 }}>Location</span><span>{r.locationRequirements}</span></div>}
               {job.closes_on && <div><span className="muted" style={{ width: 170 }}>Closes</span><span>{fmtDate(job.closes_on)}</span></div>}
             </div>
