@@ -47,8 +47,8 @@ function Scoring() {
             <option value="relevant">Relevant experience only</option><option value="total">Total experience</option></select></label>
         </div>
         <div className="stack" style={{ marginTop: 14, gap: 8 }}>
-          <label className="check"><input type="checkbox" checked={f.rules.enforceMinExperience} onChange={(e) => setF({ ...f, rules: { ...f.rules, enforceMinExperience: e.target.checked } })} />Reject when experience is below the vacancy minimum</label>
-          <label className="check"><input type="checkbox" checked={f.rules.enforceMandatory} onChange={(e) => setF({ ...f, rules: { ...f.rules, enforceMandatory: e.target.checked } })} />Reject when a mandatory requirement has no evidence</label>
+          <label className="check"><input type="checkbox" checked={f.rules.enforceMinExperience} onChange={(e) => setF({ ...f, rules: { ...f.rules, enforceMinExperience: e.target.checked } })} />Reject below the shortlist score when experience is below the vacancy minimum</label>
+          <label className="check"><input type="checkbox" checked={f.rules.enforceMandatory} onChange={(e) => setF({ ...f, rules: { ...f.rules, enforceMandatory: e.target.checked } })} />Reject below the shortlist score when a mandatory requirement has no evidence</label>
           <label className="check"><input type="checkbox" checked={rescore} onChange={(e) => setRescore(e.target.checked)} />Re-score every candidate on open and closed vacancies after saving</label>
         </div>
         <div className="row" style={{ marginTop: 14 }}><button className="btn primary" disabled={busy || sum !== 100} onClick={save}>Save scoring rules</button></div>

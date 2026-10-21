@@ -1,7 +1,7 @@
 import { DragEvent, useEffect, useRef, useState } from 'react';
 import { Link, NavLink, useParams } from 'react-router-dom';
 import { patch, post, upload } from '../api';
-import { LEVELS, WEIGHT_LABELS, fmtDate, useAction, useCan, useData } from '../lib';
+import { LEVELS, WEIGHT_LABELS, fmtDate, useAction, useCan, useData, useToast } from '../lib';
 import { ErrorBox, Loading, PageHead, Pill, ScoreRing } from '../ui';
 
 export default function VacancyDetail() {
@@ -9,6 +9,8 @@ export default function VacancyDetail() {
   const can = useCan();
   const { data: job, error, reload } = useData<any>(`/jobs/${id}`);
   const { busy, run } = useAction();
+  const toast = useToast();
+  const [rescoreTick, setRescoreTick] = useState(0);
   const canRank = can('evaluations.view', 'shortlist.review');
   const tab = tabParam ?? (canRank ? 'ranking' : can('candidates.upload') ? 'upload' : 'details');
   if (error) return <ErrorBox error={error} />;
@@ -17,7 +19,14 @@ export default function VacancyDetail() {
 
   const decide = async (decision: 'approve' | 'reject') => { await run(() => post(`/jobs/${id}/decision`, { decision }), decision === 'approve' ? 'Vacancy opened' : 'Request declined'); reload(); };
   const setStatus = async (status: string) => { await run(() => patch(`/jobs/${id}/status`, { status }), 'Status updated'); reload(); };
-  const rescore = async () => { const x = await run(() => post(`/jobs/${id}/rescore`)); if (x) { reload(); } };
+  const rescore = async () => {
+    const x = await run(() => post<{ requeued: number }>(`/jobs/${id}/rescore`));
+    if (x) {
+      toast(x.requeued ? `Re-scoring ${x.requeued} candidate${x.requeued === 1 ? '' : 's'}…` : 'No candidates to re-score');
+      setRescoreTick((t) => t + 1);
+      reload();
+    }
+  };
 
   return (
     <>
@@ -33,7 +42,7 @@ export default function VacancyDetail() {
         {can('candidates.upload') && job.status === 'open' && <NavLink to={`/vacancies/${id}/upload`} className={tab === 'upload' ? 'active' : ''}>Upload CVs</NavLink>}
         <NavLink to={`/vacancies/${id}/details`} className={tab === 'details' ? 'active' : ''}>Requirements</NavLink>
       </div>
-      {tab === 'ranking' && canRank && <Ranking job={job} />}
+      {tab === 'ranking' && canRank && <Ranking job={job} refresh={rescoreTick} />}
       {tab === 'upload' && can('candidates.upload') && <Upload job={job} />}
       {tab === 'details' && (
         <div className="grid2">
@@ -67,7 +76,7 @@ export default function VacancyDetail() {
             <div><div className="section-title">Weights {job.weights_override ? '(custom for this vacancy)' : '(organisation default)'}</div>
               {Object.entries(job.effectiveWeights).map(([k, v]) => <span key={k} className="tag">{WEIGHT_LABELS[k]} {String(v)}%</span>)}</div>
             <div className="muted small">Shortlist at {job.thresholds.shortlist}+, Consider at {job.thresholds.consider}+, Hold at {job.thresholds.hold}+.
-              {job.rules.enforceMandatory && ' Missing mandatory → Reject.'}{job.rules.enforceMinExperience && ` Below ${r.minYears} years ${job.rules.experienceBasis} experience → Reject.`}</div>
+              {job.rules.enforceMandatory && ' Missing mandatory → Reject below the shortlist score.'}{job.rules.enforceMinExperience && ` Below ${r.minYears} years ${job.rules.experienceBasis} experience → Reject below the shortlist score.`}</div>
           </section>
         </div>
       )}
@@ -75,8 +84,8 @@ export default function VacancyDetail() {
   );
 }
 
-function Ranking({ job }: { job: any }) {
-  const { data, reload } = useData<any[]>(`/jobs/${job.id}/ranking`);
+function Ranking({ job, refresh }: { job: any; refresh: number }) {
+  const { data, reload } = useData<any[]>(`/jobs/${job.id}/ranking`, [refresh]);
   const [filter, setFilter] = useState('All');
   const pending = (data ?? []).some((r) => ['pending', 'running'].includes(r.evaluation_status));
   useEffect(() => { if (!pending) return; const t = setInterval(reload, 3000); return () => clearInterval(t); }, [pending, reload]);

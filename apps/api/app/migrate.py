@@ -83,7 +83,7 @@ async def seed_reference(pool: asyncpg.Pool) -> None:
         """INSERT INTO scoring_profiles (name, weights, thresholds, rules, is_default)
            SELECT 'Default', $1, $2, $3, true WHERE NOT EXISTS (SELECT 1 FROM scoring_profiles WHERE is_default)""",
         {"qualifications": 20, "technical": 30, "experience": 30, "certifications": 10, "preferred": 5, "progression": 5},
-        {"shortlist": 85, "consider": 65, "hold": 50},
+        {"shortlist": 70, "consider": 65, "hold": 50},
         {"enforceMinExperience": True, "enforceMandatory": True, "experienceBasis": "relevant"},
     )
     await pool.execute("INSERT INTO ai_settings (id) VALUES (1) ON CONFLICT DO NOTHING")

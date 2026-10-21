@@ -126,8 +126,10 @@ only candidates they interview (and never contact details); viewers see aggregat
 5. **Score**, always deterministically:
    `overall = Σ(component × weight) / 100` over qualifications, technical skills, relevant experience,
    certifications, preferred skills and career progression. Weights are configurable per organisation and per vacancy.
-6. **Recommend**: hard rules first (missing mandatory requirement, or experience below the minimum → Reject;
-   both switchable), then thresholds (default Shortlist ≥ 85, Consider ≥ 65, Hold ≥ 50, else Reject).
+6. **Recommend**: thresholds decide (default Shortlist ≥ 70, Consider ≥ 65, Hold ≥ 50, else Reject).
+   Hard rules (missing mandatory requirement, or experience below the minimum; both switchable) then
+   knock a candidate back to Reject only when the weighted score is below the shortlist bar — a score
+   of 70 or more is always shortlisted, with the hard-rule gap flagged for the reviewer.
 7. **Explain**: strengths with quoted evidence, gaps, a one-paragraph justification and, if AI is on, a short
    narrative written only from the computed facts.
 

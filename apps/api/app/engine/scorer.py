@@ -4,7 +4,7 @@ from __future__ import annotations
 import math
 import re
 
-from .aliases import find_evidence, term_regex
+from .aliases import aliases_of, find_evidence, term_regex
 from .keywords import STOP_WORDS, gap_severity
 from .parser import merged_years, seniority
 
@@ -149,7 +149,9 @@ def build_review(facts: dict) -> str:
     return " ".join(s)
 
 
-def build_recommendations(recommendation: str, skill_gaps: dict[str, list[str]]) -> list[str]:
+def build_recommendations(
+    recommendation: str, skill_gaps: dict[str, list[str]], hard: list[str] | None = None
+) -> list[str]:
     """Actionable, decision-support recommendations for a recruiter."""
     out: list[str] = []
     if recommendation == "Shortlist":
@@ -162,6 +164,8 @@ def build_recommendations(recommendation: str, skill_gaps: dict[str, list[str]])
     else:
         out.append("Below the hold threshold — not recommended for this vacancy.")
         out.append("Consider for adjacent or junior roles where the gaps are less material.")
+    if hard and recommendation == "Shortlist":
+        out.append(f"Hard-rule flag for the panel: {_oxford(hard)}. Confirm before the interview.")
     if skill_gaps.get("critical"):
         out.append(f"Critical gaps: {_oxford(skill_gaps['critical'])}.")
     if skill_gaps.get("moderate"):
@@ -219,11 +223,20 @@ def score(input: dict) -> dict:
     # ---- relevant experience: roles that mention ≥2 of the job's skills or share a title keyword
     skill_set = [*req["technicalSkills"], *req["preferredSkills"]]
     title_words = [x for x in re.split(r"[^a-z0-9&]+", input["jobTitle"].lower()) if len(x) > 2 and x not in STOP_WORDS]
+    # The vacancy's family words have synonyms: an "EMR" role may state LAMISPlus.
+    family_terms: list[str] = []
+    for x in title_words:
+        for a in aliases_of(x):
+            if len(a) > 2 and a not in family_terms:
+                family_terms.append(a)
 
     def is_relevant(role: dict) -> bool:
         t = (role["title"] + "\n" + role["text"]).lower()
         n = len([s for s in skill_set if find_evidence(t, [t], s)["hit"]])
-        return n >= 2 or any(term_regex(x).search(role["title"]) for x in title_words)
+        # Job-family words ("emr", "health", "informatics") may appear in the
+        # role description rather than in its title (e.g. "Data Entry Clerk —
+        # Monitoring & Evaluation" describing LAMISPLUS EMR work).
+        return n >= 2 or any(term_regex(x).search(t) for x in family_terms)
 
     relevant = [role for role in roles if is_relevant(role)]
     relevant_years = merged_years(relevant) if roles else total_years
@@ -275,6 +288,7 @@ def score(input: dict) -> dict:
     }
     wsum = sum((w.get(k) or 0) for k in WEIGHT_KEYS) or 100
     overall = _round(sum(components[k] * (w.get(k) or 0) for k in WEIGHT_KEYS) / wsum)
+    weighted = overall  # the weighted fit score, before any hard rule applies
 
     # ---- hard rules, then thresholds
     hard: list[str] = []
@@ -285,15 +299,18 @@ def score(input: dict) -> dict:
         hard.append(
             f"{'Total' if rules['experienceBasis'] == 'total' else 'Relevant'} experience of {_num(exp_years)} years is below the {_num(minimum)}-year minimum"
         )
-    if hard:
-        recommendation = "Reject"
-    elif overall >= T["shortlist"]:
+    if overall >= T["shortlist"]:
         recommendation = "Shortlist"
     elif overall >= T["consider"]:
         recommendation = "Consider"
     elif overall >= T["hold"]:
         recommendation = "Hold"
     else:
+        recommendation = "Reject"
+    # A score at or above the shortlist threshold always shortlists. Hard rules
+    # only knock out candidates who fall short of that bar: the failure stays in
+    # `hardRuleFailures`, the gaps and the justification so a human reviews it.
+    if hard and recommendation != "Shortlist":
         recommendation = "Reject"
 
     # ---- strengths and gaps (each strength carries CV evidence)
@@ -347,8 +364,18 @@ def score(input: dict) -> dict:
             )
         )
 
-    if hard:
-        just = f"{'. '.join(hard)}. Weighted score was {_num(overall)}/100 before the rule was applied."
+    if hard and recommendation == "Shortlist":
+        just = (
+            f"{'. '.join(hard)}. The weighted score is {_num(weighted)}/100, which meets the "
+            f"{_num(T['shortlist'])}-point shortlist threshold; the candidate is shortlisted with "
+            "the hard-rule gap flagged for review."
+        )
+    elif hard:
+        just = (
+            f"{'. '.join(hard)}. The weighted score is {_num(weighted)}/100, below the "
+            f"{_num(T['shortlist'])}-point shortlist threshold, so the hard rule sets the "
+            "recommendation to Reject."
+        )
     else:
         parts = [f"{_num(overall)}/100 weighted score"]
         if missing_mandatory:
@@ -417,7 +444,7 @@ def score(input: dict) -> dict:
         "keywordMatches": keyword_matches,
         "missingKeywords": missing_keywords,
         "skillGapAnalysis": skill_gaps,
-        "recommendations": build_recommendations(recommendation, skill_gaps),
+        "recommendations": build_recommendations(recommendation, skill_gaps, hard),
     }
 
     return {

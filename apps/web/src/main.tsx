@@ -21,11 +21,19 @@ import Settings from './pages/Settings';
 import Audit from './pages/Audit';
 import Notifications from './pages/Notifications';
 import Account from './pages/Account';
+import Applications from './pages/Applications';
+import { PortalProvider } from './portal';
+import PortalLogin from './pages/portal/PortalLogin';
+import PortalJobs from './pages/portal/PortalJobs';
+import PortalJobDetail from './pages/portal/PortalJobDetail';
+import PortalProfile from './pages/portal/PortalProfile';
+import PortalApplications from './pages/portal/PortalApplications';
 
 const NAV: { group?: string; to: string; label: string; icon: keyof typeof Icon; perms: string[] }[] = [
   { to: '/', label: 'Dashboard', icon: 'dashboard', perms: [] },
   { group: 'Recruitment', to: '/vacancies', label: 'Vacancies', icon: 'vacancies', perms: ['jobs.view_all', 'jobs.view_assigned', 'hiring_requests.create'] },
   { to: '/candidates', label: 'Candidates', icon: 'candidates', perms: ['candidates.view', 'candidates.view_assigned'] },
+  { to: '/applications', label: 'Applications', icon: 'applications', perms: ['candidates.view', 'candidates.view_assigned', 'candidates.status', 'workflow.manage'] },
   { to: '/compare', label: 'Compare', icon: 'compare', perms: ['evaluations.view', 'shortlist.review'] },
   { to: '/interviews', label: 'Interviews', icon: 'interviews', perms: ['interviews.view', 'interviews.score', 'interviews.schedule'] },
   { to: '/reports', label: 'Reports', icon: 'reports', perms: ['reports.view'] },
@@ -89,37 +97,53 @@ function App() {
   return (
     <SessionCtx.Provider value={{ session, setSession, signOut }}>
       <ToastProvider>
-        <BrowserRouter>
-          {!session ? (
-            <Routes><Route path="*" element={<Login />} /></Routes>
-          ) : session.mustChangePassword ? (
-            <Routes><Route path="*" element={<div className="login"><div className="login-card"><Account forced /></div></div>} /></Routes>
-          ) : (
-            <Shell>
-              <Routes>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/vacancies" element={<Guard perms={NAV[1].perms}><Vacancies /></Guard>} />
-                <Route path="/vacancies/new" element={<Guard perms={['jobs.create', 'hiring_requests.create']}><VacancyForm /></Guard>} />
-                <Route path="/vacancies/:id/edit" element={<Guard perms={['jobs.edit']}><VacancyForm /></Guard>} />
-                <Route path="/vacancies/:id" element={<VacancyDetail />} />
-                <Route path="/vacancies/:id/:tab" element={<VacancyDetail />} />
-                <Route path="/candidates" element={<Guard perms={NAV[2].perms}><Candidates /></Guard>} />
-                <Route path="/candidates/:id" element={<Guard perms={NAV[2].perms}><CandidateDetail /></Guard>} />
-                <Route path="/compare" element={<Guard perms={NAV[3].perms}><Compare /></Guard>} />
-                <Route path="/interviews" element={<Guard perms={NAV[4].perms}><Interviews /></Guard>} />
-                <Route path="/reports" element={<Guard perms={['reports.view']}><Reports /></Guard>} />
-                <Route path="/admin/users" element={<Guard perms={['users.manage']}><Users /></Guard>} />
-                <Route path="/admin/roles" element={<Guard perms={['roles.manage']}><Roles /></Guard>} />
-                <Route path="/admin/settings" element={<Guard perms={['scoring.configure', 'ai.configure']}><Settings /></Guard>} />
-                <Route path="/admin/audit" element={<Guard perms={['audit.view']}><Audit /></Guard>} />
-                <Route path="/notifications" element={<Notifications />} />
-                <Route path="/account" element={<Account />} />
-                <Route path="/login" element={<Navigate to="/" replace />} />
-                <Route path="*" element={<div className="empty">Page not found.</div>} />
-              </Routes>
-            </Shell>
-          )}
-        </BrowserRouter>
+        <PortalProvider>
+          <BrowserRouter>
+            <Routes>
+              {/* Public candidate portal — reachable without staff sign-in. */}
+              <Route path="/jobs" element={<PortalJobs />} />
+              <Route path="/jobs/:id" element={<PortalJobDetail />} />
+              <Route path="/portal/login" element={<PortalLogin />} />
+              <Route path="/portal/register" element={<PortalLogin />} />
+              <Route path="/portal/profile" element={<PortalProfile />} />
+              <Route path="/portal/applications" element={<PortalApplications />} />
+
+              {/* Internal staff app */}
+              {!session ? (
+                <Route path="*" element={<Login />} />
+              ) : session.mustChangePassword ? (
+                <Route path="*" element={<div className="login"><div className="login-card"><Account forced /></div></div>} />
+              ) : (
+                <Route path="*" element={
+                  <Shell>
+                    <Routes>
+                      <Route path="/" element={<Dashboard />} />
+                      <Route path="/vacancies" element={<Guard perms={NAV[1].perms}><Vacancies /></Guard>} />
+                      <Route path="/vacancies/new" element={<Guard perms={['jobs.create', 'hiring_requests.create']}><VacancyForm /></Guard>} />
+                      <Route path="/vacancies/:id/edit" element={<Guard perms={['jobs.edit']}><VacancyForm /></Guard>} />
+                      <Route path="/vacancies/:id" element={<VacancyDetail />} />
+                      <Route path="/vacancies/:id/:tab" element={<VacancyDetail />} />
+                      <Route path="/candidates" element={<Guard perms={NAV[2].perms}><Candidates /></Guard>} />
+                      <Route path="/candidates/:id" element={<Guard perms={NAV[2].perms}><CandidateDetail /></Guard>} />
+                      <Route path="/applications" element={<Guard perms={NAV[3].perms}><Applications /></Guard>} />
+                      <Route path="/compare" element={<Guard perms={NAV[4].perms}><Compare /></Guard>} />
+                      <Route path="/interviews" element={<Guard perms={NAV[5].perms}><Interviews /></Guard>} />
+                      <Route path="/reports" element={<Guard perms={['reports.view']}><Reports /></Guard>} />
+                      <Route path="/admin/users" element={<Guard perms={['users.manage']}><Users /></Guard>} />
+                      <Route path="/admin/roles" element={<Guard perms={['roles.manage']}><Roles /></Guard>} />
+                      <Route path="/admin/settings" element={<Guard perms={['scoring.configure', 'ai.configure']}><Settings /></Guard>} />
+                      <Route path="/admin/audit" element={<Guard perms={['audit.view']}><Audit /></Guard>} />
+                      <Route path="/notifications" element={<Notifications />} />
+                      <Route path="/account" element={<Account />} />
+                      <Route path="/login" element={<Navigate to="/" replace />} />
+                      <Route path="*" element={<div className="empty">Page not found.</div>} />
+                    </Routes>
+                  </Shell>
+                } />
+              )}
+            </Routes>
+          </BrowserRouter>
+        </PortalProvider>
       </ToastProvider>
     </SessionCtx.Provider>
   );

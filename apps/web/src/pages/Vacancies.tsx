@@ -6,11 +6,13 @@ import { Drawer, ErrorBox, Loading, PageHead, Pill } from '../ui';
 
 export default function Vacancies() {
   const can = useCan();
-  const { data, error, reload } = useData<any[]>('/jobs');
+  const [q, setQ] = useState('');
+  const { data, error, reload } = useData<any[]>('/jobs' + (q.trim().length > 1 ? `?q=${encodeURIComponent(q.trim())}` : ''));
   const [batch, setBatch] = useState(false);
   return (
     <>
       <PageHead eyebrow="Recruitment campaigns" title="Vacancies">
+        <input id="vq" type="search" placeholder="Search vacancy, ref, department or manager" value={q} onChange={(e) => setQ(e.target.value)} style={{ width: 'min(320px, 100%)' }} />
         {can('jobs.create') && <button className="btn primary" onClick={() => setBatch(true)}>Batch upload</button>}
         {can('jobs.create') ? <Link className="btn primary" to="/vacancies/new">New vacancy</Link>
           : can('hiring_requests.create') ? <Link className="btn primary" to="/vacancies/new">Raise hiring request</Link> : null}

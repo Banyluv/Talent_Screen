@@ -22,6 +22,9 @@ dist/
 !.env.example
 !apps/web/.env.example
 
+# Local credential notes (dev logins kept on disk)
+login*.txt
+
 # Editors / OS
 .DS_Store
 Thumbs.db

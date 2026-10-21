@@ -18,6 +18,7 @@ _HAS_DIGIT = re.compile(r"\d")
 
 ISSUER = "talentscreen"
 AUDIENCE = "talentscreen-web"
+APPLICANT_AUDIENCE = "talentscreen-portal"
 
 
 def strong_password(p: str) -> bool:
@@ -57,6 +58,15 @@ def sign(payload: dict[str, Any], *, expires_in: int, audience: str = AUDIENCE) 
 
 def access_token(user_id: str, name: str, role: str) -> str:
     return sign({"sub": user_id, "name": name, "role": role}, expires_in=config.access_ttl_sec)
+
+
+def applicant_access_token(applicant_id: str, name: str) -> str:
+    """Short-lived access token for the external applicant portal (distinct audience)."""
+    return sign(
+        {"sub": applicant_id, "name": name, "role": "applicant"},
+        expires_in=config.access_ttl_sec,
+        audience=APPLICANT_AUDIENCE,
+    )
 
 
 def verify(token: str, *, audience: str = AUDIENCE) -> dict[str, Any]:

@@ -15,7 +15,7 @@ from app.services.recruitment_standard import (
 from app.services.vacancy_import import parse_document
 
 W = {"qualifications": 20, "technical": 30, "experience": 30, "certifications": 10, "preferred": 5, "progression": 5}
-T = {"shortlist": 85, "consider": 65, "hold": 50}
+T = {"shortlist": 70, "consider": 65, "hold": 50}
 R = {"enforceMinExperience": True, "enforceMandatory": True, "experienceBasis": "relevant"}
 
 MALARIA_STD = """A first degree in Medicine, Public Health, or a related health field.

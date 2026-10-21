@@ -61,12 +61,12 @@ button, input, select, textarea { font: inherit; color: inherit }
 .content { padding: 24px 28px 48px; display: flex; flex-direction: column; gap: 20px; max-width: 1320px; width: 100% }
 
 /* primitives */
-.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line-strong); background: var(--surface); padding: 7px 13px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: .9rem; white-space: nowrap; text-decoration: none; color: var(--ink) }
-.btn:hover { border-color: var(--green) }
+.btn { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--green); background: var(--green); padding: 7px 13px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: .9rem; white-space: nowrap; text-decoration: none; color: var(--on-accent) }
+.btn:hover { filter: brightness(1.07) }
 .btn.primary { background: var(--green); border-color: var(--green); color: var(--on-accent) }
 .btn.primary:hover { filter: brightness(1.07) }
-.btn.danger { color: var(--crimson); border-color: var(--crimson) }
-.btn.ghost { border-color: transparent; background: transparent }
+.btn.danger { background: transparent; color: var(--crimson); border-color: var(--crimson) }
+.btn.ghost { border-color: var(--green); background: transparent; color: var(--green) }
 .btn.sm { padding: 4px 9px; font-size: .82rem }
 .btn:disabled { opacity: .45; cursor: not-allowed }
 .icon-btn { position: relative; border: 1px solid var(--line); background: var(--surface); border-radius: 8px; width: 36px; height: 36px; display: grid; place-items: center; cursor: pointer; color: var(--ink) }

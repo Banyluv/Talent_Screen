@@ -127,15 +127,25 @@ class DecisionBody(BaseModel):
 @router.get("")
 async def list_jobs(
     includeExpired: bool = Query(default=False),
+    q: str | None = Query(default=None),
     me: AuthUser = Depends(current_user),
 ):
     """Vacancies visible to me. Ones that closed more than JOB_EXPIRY_GRACE_DAYS ago
-    are hidden unless `includeExpired=true` (used by the historical report filter)."""
+    are hidden unless `includeExpired=true` (used by the historical report filter).
+    `q` narrows the list by title, reference, location, project, department or hiring manager."""
     params: list[Any] = [me.id]
     expiry = ""
     if not includeExpired:
         params.append(job_expiry_cutoff())
         expiry = f" AND {job_visible_sql(len(params))}"
+    search = ""
+    if q and q.strip():
+        params.append(f"%{q.strip()}%")
+        search = (
+            f" AND (j.title ILIKE ${len(params)} OR j.ref_code ILIKE ${len(params)}"
+            f" OR j.location ILIKE ${len(params)} OR j.project ILIKE ${len(params)}"
+            f" OR d.name ILIKE ${len(params)} OR hm.full_name ILIKE ${len(params)})"
+        )
     return await db.many(
         f"""SELECT j.id, j.ref_code, j.title, j.location, j.employment_type, j.status, j.created_at, j.closes_on,
                    j.project, j.number_of_positions, j.reports_to, j.level_of_effort, j.minimum_recruitment_standard,
@@ -146,7 +156,7 @@ async def list_jobs(
                    (SELECT count(*)::int FROM evaluations e WHERE e.job_id=j.id AND e.is_current AND e.status IN ('pending','running')) AS evaluating
             FROM jobs j LEFT JOIN departments d ON d.id=j.department_id
             LEFT JOIN users hm ON hm.id=j.hiring_manager_id LEFT JOIN users rq ON rq.id=j.requested_by
-            WHERE {job_scope(me)}{expiry} ORDER BY (j.status='requested') DESC, (j.status='open') DESC, j.created_at DESC""",
+            WHERE {job_scope(me)}{expiry}{search} ORDER BY (j.status='requested') DESC, (j.status='open') DESC, j.created_at DESC""",
         params,
     )
 

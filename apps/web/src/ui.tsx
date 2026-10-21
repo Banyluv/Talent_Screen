@@ -9,7 +9,7 @@ export function Pill({ value, label }: { value?: string | null; label?: string }
 
 export function ScoreRing({ value, thresholds, lg }: { value?: number | null; thresholds?: { shortlist: number; consider: number; hold: number }; lg?: boolean }) {
   if (value === null || value === undefined) return <span className={'score' + (lg ? ' lg' : '')} style={{ ['--v' as any]: 0, ['--c' as any]: 'var(--line)' }}><span>…</span></span>;
-  const t = thresholds ?? { shortlist: 85, consider: 65, hold: 50 };
+  const t = thresholds ?? { shortlist: 70, consider: 65, hold: 50 };
   const c = value >= t.shortlist ? 'var(--green)' : value >= t.consider ? 'var(--amber)' : value >= t.hold ? 'var(--slate)' : 'var(--crimson)';
   return <span className={'score' + (lg ? ' lg' : '')} style={{ ['--v' as any]: value, ['--c' as any]: c }} aria-label={`Score ${value} of 100`}><span>{value}</span></span>;
 }
@@ -45,6 +45,7 @@ export const Icon = {
   dashboard: P('M3 13h8V3H3zm10 8h8V11h-8zM3 21h8v-6H3zm10-18v6h8V3z'),
   vacancies: P('M10 3h4a2 2 0 0 1 2 2v2h4a1 1 0 0 1 1 1v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a1 1 0 0 1 1-1h4V5a2 2 0 0 1 2-2zm0 4h4V5h-4z'),
   candidates: P('M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 9a7 7 0 0 1 14 0v1H2zm15-9a3 3 0 1 0 0-6v6zm1 2.2A6.5 6.5 0 0 1 22 20v1h-4v-1a8.9 8.9 0 0 0-2.4-6.1c.8-.4 1.6-.7 2.4-.7z'),
+  applications: P('M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2zm2 4v2h10V7zm0 4v2h10v-2zm0 4v2h7v-2z'),
   compare: P('M3 4h7v16H3zm11 0h7v16h-7zM5 7v2h3V7zm11 0v2h3V7z'),
   interviews: P('M7 2h2v2h6V2h2v2h3a1 1 0 0 1 1 1v15a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a1 1 0 0 1 1-1h3zm-2 8v10h14V10zm2 2h4v4H7z'),
   reports: P('M4 20h16v2H4zm1-8h3v6H5zm5-5h3v11h-3zm5 3h3v8h-3z'),

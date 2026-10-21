@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from . import config, db, queue, storage
-from .routers import admin, auth, candidates, interviews, jobs, reports
+from .routers import admin, applications, auth, candidates, interviews, jobs, portal, reports
 from .services.evaluation import service as evaluations
 
 logging.basicConfig(level=logging.INFO, format="%(levelname)s [%(name)s] %(message)s")
@@ -98,7 +98,7 @@ async def health():
     return {"status": "ok", "time": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.") + f"{datetime.now(timezone.utc).microsecond // 1000:03d}Z"}
 
 
-for r in (auth.router, admin.router, jobs.router, candidates.router, interviews.router, reports.router):
+for r in (auth.router, admin.router, jobs.router, candidates.router, interviews.router, reports.router, portal.router, applications.router):
     app.include_router(r, prefix="/api")
 
 

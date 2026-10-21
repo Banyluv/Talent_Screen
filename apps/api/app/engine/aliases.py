@@ -76,8 +76,8 @@ SYNONYMS: dict[str, list[str]] = {
     "nursing": ["nursing", "nurse", "midwifery", "midwife"],
     "midwifery": ["midwifery", "midwife", "nurse"],
     "community health": ["community health", "community health worker", "outreach"],
-    "health informatics": ["health informatics", "emr", "electronic medical record", "health information"],
-    "emr": ["emr", "electronic medical record", "health informatics"],
+    "health informatics": ["health informatics", "emr", "electronic medical record", "health information", "lamisplus", "lamis"],
+    "emr": ["emr", "electronic medical record", "health informatics", "lamisplus", "lamis"],
     # ------------------------------------------------------------- M&E / data
     "monitoring": ["monitoring", "m&e", "monitoring and evaluation", "monitoring & evaluation"],
     "evaluation": ["evaluation", "m&e", "monitoring and evaluation", "monitoring & evaluation"],

@@ -89,6 +89,32 @@ def require(*perms: str):
     return dep
 
 
+async def current_applicant(authorization: str | None = Header(default=None)) -> dict:
+    """Authenticate an external applicant from a portal-audience bearer token."""
+    token = ""
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization[7:]
+    if not token:
+        raise HTTPException(401, detail="Sign in to continue")
+    try:
+        payload = security.verify(token, audience=security.APPLICANT_AUDIENCE)
+    except Exception:
+        raise HTTPException(401, detail="Your session has expired. Sign in again.")
+    sub = payload.get("sub")
+    if not isinstance(sub, str) or not sub:
+        raise HTTPException(401, detail="Your session has expired. Sign in again.")
+    applicant = await db.one(
+        "SELECT id, email, full_name, is_active FROM applicants WHERE id = $1", [sub]
+    )
+    if not applicant or not applicant["is_active"]:
+        raise HTTPException(401, detail="This account is suspended or no longer exists")
+    return {
+        "id": str(applicant["id"]),
+        "email": applicant["email"],
+        "full_name": applicant["full_name"],
+    }
+
+
 async def audit_context(
     request: Request, user: AuthUser | None = Depends(optional_user)
 ) -> AuditContext:

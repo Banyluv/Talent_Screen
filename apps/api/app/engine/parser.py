@@ -130,6 +130,117 @@ def _clean_line(l: str) -> str:
     return re.sub(r"^[•\-*·▪●]\s*", "", l).strip()
 
 
+# Job titles and employers often sit on separate lines (the date may be on a line
+# of its own or appended to the employer), so these help tell the two apart.
+TITLE_WORDS = re.compile(
+    r"\b(engineer|developer|programmer|architect|designer|manager|supervisor|director|head|"
+    r"chief|president|officer|analyst|specialist|coordinator|consultant|assistant|associate|"
+    r"intern|trainee|clerk|technician|advisor|adviser|scientist|statistician|epidemiologist|"
+    r"accountant|auditor|recruiter|secretary|executive|representative|teacher|trainer|"
+    r"nurse|doctor|pharmacist|attendant|administrator|lead|devops|tester|qa|ict|"
+    r"data entry|m&e|monitoring|evaluation|support|technologist|volunteer)\b",
+    re.I,
+)
+
+ORG_WORDS = re.compile(
+    r"\b(ltd|limited|plc|inc|llc|corp|corporation|company|group|holdings|foundation|trust|"
+    r"ngo|project|programme|program|scheme|agency|commission|council|ministry|department|"
+    r"bureau|institute|university|college|hospital|clinic|centre|center|bank|insurance|"
+    r"school|academy|association|society|network|partners|office|branch|division|unit|"
+    r"cluster|state|nigeria)\b",
+    re.I,
+)
+
+# Words that rule a line out as a person's name (section headings, salutations
+# and employer names).
+NAME_BLOCK = re.compile(
+    r"\b(hiring|manager|dear|sir|madam|recruiter|application|curriculum|resume|vitae|profile|"
+    r"summary|contact|address|email|phone|ltd|limited|plc|inc|llc|company|group|project|"
+    r"programme|program|scheme|agency|commission|council|ministry|department|university|"
+    r"college|hospital|clinic|centre|center|institute|bank|school|academy|association|"
+    r"society|network|office|services|solutions|technologies|consulting|nigeria|state|road|"
+    r"street|avenue)\b",
+    re.I,
+)
+
+
+def _looks_like_name(line: str) -> bool:
+    s = line.strip().rstrip(",")
+    if not (2 <= len(s) <= 60) or re.search(r"[0-9@|/]", s):
+        return False
+    if any(rx.search(s) for _, rx in HEADINGS) or NAME_BLOCK.search(s):
+        return False
+    words = re.findall(r"[A-Za-z][A-Za-z.'-]*", s)
+    if not (2 <= len(words) <= 5):
+        return False
+    return all(w[0].isupper() for w in words)
+
+
+def _find_name(lines: list[str]) -> str:
+    # The name is usually in the first few lines of the CV.
+    for l in lines[:6]:
+        if _looks_like_name(l):
+            return l
+    # A cover letter may come first: the name then repeats at the top of the CV,
+    # or sits immediately above the contact line.
+    seen: dict[str, int] = {}
+    for l in lines[:60]:
+        if _looks_like_name(l):
+            key = re.sub(r"\s+", " ", l.strip().rstrip(",")).lower()
+            seen[key] = seen.get(key, 0) + 1
+    for l in lines[:60]:
+        if _looks_like_name(l) and seen[re.sub(r"\s+", " ", l.strip().rstrip(",")).lower()] >= 2:
+            return l
+    for i, l in enumerate(lines[:60]):
+        if "@" in l or re.search(r"\+?[0-9][0-9\s-]{7,}", l):
+            for back in range(i - 1, max(-1, i - 4), -1):
+                if _looks_like_name(lines[back]):
+                    return lines[back]
+    return "Unnamed candidate"
+
+
+def _strip_range(line: str, match: str) -> str:
+    """The text on a date line, with the date range removed."""
+    s = line.replace(match, "", 1)
+    s = re.sub(r"[|,–—(\-\s]+$", "", s)
+    s = re.sub(r"^[|,–—)\-\s]+", "", s)
+    return s.strip()
+
+
+def _looks_like_header(line: str) -> bool:
+    """A job-title / employer / location line that may precede a date line."""
+    s = line.strip()
+    if not (2 <= len(s) <= 80):
+        return False
+    if re.search(r"[.!?;]$", s) or s[0].islower():
+        return False
+    if re.match(r"^(roles?|responsibilities|duties|key responsibilities|achievements)\s*:?$", s, re.I):
+        return False
+    if any(rx.search(s) for _, rx in HEADINGS):
+        return False
+    return len(s) <= 55 or bool(TITLE_WORDS.search(s) or ORG_WORDS.search(s))
+
+
+def _role_header(above: list[str], inline: str) -> dict:
+    """Pick the job title out of the lines that make up a role header."""
+    block = [*above, *([inline] if inline else [])]
+    if not block:
+        return {"title": "", "organisation": ""}
+
+    def rank(i: int, s: str) -> int:
+        title, org = bool(TITLE_WORDS.search(s)), bool(ORG_WORDS.search(s))
+        v = 4 if title and not org else 2 if title else -4 if org else 0
+        v += 1 if len(s) <= 60 else 0
+        v += 1 if i == 0 or i == len(block) - 1 else 0
+        return v
+
+    idx = max(range(len(block)), key=lambda i: (rank(i, block[i]), -i))
+    chosen = _split_title_org(block[idx])
+    others = [s for j, s in enumerate(block) if j != idx]
+    org = ", ".join(x for x in [chosen["organisation"], *others] if x)
+    return {"title": chosen["title"].rstrip(":").strip(), "organisation": org}
+
+
 def parse_cv(raw: str, now: datetime | None = None) -> dict:
     if now is None:
         now = datetime.now()
@@ -137,49 +248,70 @@ def parse_cv(raw: str, now: datetime | None = None) -> dict:
     lines = [l for l in (_clean_line(x) for x in text.split("\n")) if l]
     email_match = re.search(r"[A-Za-z0-9_.+-]+@[A-Za-z0-9_-]+\.[A-Za-z0-9_.-]+", text)
     email = email_match.group(0) if email_match else ""
-    head = "\n".join(lines[:8])
+    head = "\n".join(lines[:60])
     phone_match = re.search(r"(\+?[0-9]{1,3}[\s-]?)?\(?[0-9]{3,4}\)?[\s-]?[0-9]{3}[\s-]?[0-9]{3,4}", head)
     phone = phone_match.group(0).strip() if phone_match else ""
-    name = next(
+    name = _find_name(lines)
+    loc_line = next(
         (
             l
-            for l in lines[:6]
-            if re.match(r"^[A-Za-z][A-Za-z.'-]+(\s+[A-Za-z][A-Za-z.'-]+){1,4}$", l)
-            and not re.search(r"curriculum|resume|vitae|profile|summary|contact", l, re.I)
+            for l in lines[:60]
+            if "|" in l or re.search(r"\bnigeria\b|\blagos\b|\babuja\b|\bcalabar\b", l, re.I)
         ),
-        "Unnamed candidate",
+        "",
     )
-    loc_line = next((l for l in lines[:6] if "|" in l or re.search(r"nigeria|lagos|abuja", l, re.I)), "")
     location = loc_line.split("|")[0].strip()
 
     sections: dict[str, list[str]] = {"header": []}
     cur = "header"
     for l in lines:
         h = next(((k, rx) for k, rx in HEADINGS if rx.search(re.sub(r"[:\s]+$", "", l))), None) if len(l) < 50 else None
+        # "HEALTH TECHNOLOGY & SOFTWARE DEVELOPMENT EXPERIENCE" and similar
+        # headings end with EXPERIENCE without starting with it.
+        if not h and len(l) < 60 and re.search(r"\bexperience$", l, re.I) and not re.search(r"\d", l):
+            h = ("experience", None)
         if h:
             cur = h[0]
             sections.setdefault(cur, [])
             continue
         sections[cur].append(l)
 
-    # Employment history
-    exp_lines = sections["experience"] if sections.get("experience") else [l for l in lines if not any(rx.search(l) for _, rx in DEGREES)]
-    roles: list[dict] = []
-    prev_line = ""
-    for l in exp_lines:
+    # Employment history. A role header may be above the date line (or the date
+    # may be appended to the employer), so gather the short header lines that sit
+    # directly above a date instead of assuming the previous line is the title.
+    exp_lines = sections["experience"] if sections.get("experience") else [
+        l for l in lines if not any(rx.search(l) for _, rx in DEGREES)
+    ]
+    entries: list[dict] = []
+    for i, l in enumerate(exp_lines):
         r = _parse_range(l, now)
-        if r:
-            head_part = l.replace(r["match"], "", 1)
-            head_part = re.sub(r"[|,–—(\-\s]+$", "", head_part)
-            head_part = re.sub(r"^[|,–—)\-\s]+", "", head_part).strip()
-            # Date on its own line → the title is usually the line above
-            if len(head_part) < 3 and prev_line:
-                head_part = prev_line
-            parts = _split_title_org(head_part)
-            roles.append({"title": parts["title"], "organisation": parts["organisation"], "start": r["start"], "end": r["end"], "current": r["current"], "text": l})
-        elif roles:
-            roles[-1]["text"] += "\n" + l
-        prev_line = l
+        if not r:
+            continue
+        j = i - 1
+        above: list[str] = []
+        while j >= 0 and len(above) < 3 and _looks_like_header(exp_lines[j]):
+            above.insert(0, exp_lines[j])
+            j -= 1
+        start = max(j + 1, entries[-1]["index"] + 1 if entries else 0)
+        entries.append({
+            "index": i,
+            "start": start,
+            "range": r,
+            "header": _role_header(above, _strip_range(l, r["match"])),
+        })
+
+    roles: list[dict] = []
+    for n, e in enumerate(entries):
+        end = entries[n + 1]["start"] if n + 1 < len(entries) else len(exp_lines)
+        text_block = "\n".join(exp_lines[e["start"]:end]).strip() or exp_lines[e["index"]]
+        roles.append({
+            "title": e["header"]["title"],
+            "organisation": e["header"]["organisation"],
+            "start": e["range"]["start"],
+            "end": e["range"]["end"],
+            "current": e["range"]["current"],
+            "text": text_block,
+        })
 
     total_years = merged_years(roles)
     if not roles:

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import math
 import re
 from datetime import datetime
 from pathlib import Path
@@ -18,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[1]
 NOW = datetime(2026, 10, 1)
 JOBS = json.loads((ROOT / "seed" / "demo-jobs.json").read_text(encoding="utf-8"))
 W = {"qualifications": 20, "technical": 30, "experience": 30, "certifications": 10, "preferred": 5, "progression": 5}
-T = {"shortlist": 85, "consider": 65, "hold": 50}
+T = {"shortlist": 70, "consider": 65, "hold": 50}
 R = {"enforceMinExperience": True, "enforceMandatory": True, "experienceBasis": "relevant"}
 
 
@@ -26,10 +27,10 @@ def cv(f: str) -> dict:
     return parse_cv((ROOT / "seed" / "demo-cvs" / f).read_text(encoding="utf-8"), NOW)
 
 
-def run(file: str, job: dict | None = None) -> dict:
+def run(file: str, job: dict | None = None, thresholds: dict | None = None) -> dict:
     if job is None:
         job = JOBS[0]
-    return score({"cv": cv(file), "jobTitle": job["title"], "req": job["requirements"], "weights": W, "thresholds": T, "rules": R})
+    return score({"cv": cv(file), "jobTitle": job["title"], "req": job["requirements"], "weights": W, "thresholds": thresholds or T, "rules": R})
 
 
 class TestParser:
@@ -49,6 +50,45 @@ class TestParser:
         assert p["roles"][0]["start"] == pytest.approx(2019 + 2 / 12)
         assert p["totalYears"] == pytest.approx(2.5, abs=0.05)
 
+    def test_reads_a_title_and_employer_stacked_above_the_date(self):
+        # Common export from Word: employer, job title and a wrapped location are
+        # on separate lines above the date, which itself has its own line.
+        p = parse_cv(
+            "Jane Doe\n"
+            "EXPERIENCE\n"
+            "Strategic Information (S.I) Intern\n"
+            "Excellence Community Education Welfare Scheme (ECEWS) – ACE5 Project, Cross\n"
+            "River State\n"
+            "May 2026 – September 2026\n"
+            "Troubleshot LAMISPLUS issues and provided on-site technical support.\n",
+            NOW,
+        )
+        assert len(p["roles"]) == 1
+        assert p["roles"][0]["title"] == "Strategic Information (S.I) Intern"
+        assert "ECEWS" in p["roles"][0]["organisation"]
+        assert p["totalYears"] == pytest.approx(4 / 12, abs=0.08)
+
+    def test_finds_the_name_after_a_cover_letter(self):
+        p = parse_cv(
+            "The Hiring Manager,\n"
+            "Excellence Community Education Welfare Scheme,\n"
+            "Nigeria.\n"
+            "Dear Hiring Manager,\n"
+            "I am writing to apply for the role.\n"
+            "Yours faithfully,\n"
+            "EKPE ISAAC JUNIOR\n"
+            "09031426025\n"
+            "ekpe@example.com\n"
+            "EKPE ISAAC JUNIOR\n"
+            "Health Informatics | IT Support\n"
+            "Calabar, Nigeria\n"
+            "PROFESSIONAL SUMMARY\n"
+            "Analyst with three years of experience.\n",
+            NOW,
+        )
+        assert p["name"] == "EKPE ISAAC JUNIOR"
+        assert p["phone"] == "09031426025"
+
 
 class TestAliases:
     def test_expands_certification_codes_and_alternatives(self):
@@ -64,11 +104,22 @@ class TestScorer:
     def test_shortlists_a_strong_evidenced_candidate(self):
         r = run("chidinma-okafor.txt")
         assert r["recommendation"] == "Shortlist"
-        assert r["overall"] >= 85
+        assert r["overall"] >= T["shortlist"]
         assert all(s.get("evidence") for s in r["strengths"] if s["text"].startswith("Evidence of"))
 
-    def test_rejects_when_a_mandatory_requirement_is_missing_and_says_why(self):
-        r = run("grace-udoh.txt")
+    def test_any_score_at_or_above_seventy_is_shortlisted_despite_a_hard_rule(self):
+        # 75 clears the 70-point shortlist bar even though Azure (mandatory) is
+        # missing: the score decides, and the gap is flagged for the panel.
+        r = run("grace-udoh.txt", thresholds={"shortlist": 70, "consider": 65, "hold": 50})
+        assert r["overall"] >= 70
+        assert r["recommendation"] == "Shortlist"
+        assert re.search(r"Mandatory requirement not evidenced: Azure", r["hardRuleFailures"][0])
+        assert "flagged for review" in r["justification"]
+        assert any(x.startswith("Hard-rule flag") for x in r["matchSummary"]["recommendations"])
+
+    def test_a_mandatory_gap_still_rejects_below_the_shortlist_threshold(self):
+        r = run("tolu-bankole.txt")
+        assert r["overall"] < T["shortlist"]
         assert r["recommendation"] == "Reject"
         assert re.search(r"Mandatory requirement not evidenced: Azure", r["hardRuleFailures"][0])
 
@@ -106,6 +157,39 @@ class TestScorer:
         r = run("blessing-akpan.txt", JOBS[1])
         assert r["recommendation"] == "Reject"
         assert any(re.search(r"below the 3-year minimum", h) for h in r["hardRuleFailures"])
+
+    def test_hard_rule_does_not_flatten_the_weighted_score(self):
+        # A knock-out decides the recommendation; it must not flatten every
+        # failed candidate to the same "hold - 1" number.
+        r = run("grace-udoh.txt")
+        expected = math.floor(sum(r["components"][k] * W[k] for k in W) / sum(W.values()) + 0.5)
+        assert r["overall"] == expected
+        assert r["overall"] != T["hold"] - 1
+
+    def test_relevant_experience_counts_a_role_that_describes_the_job_family(self):
+        job = {
+            "title": "EMR Associate – Health Informatics",
+            "requirements": {
+                "minYears": 0, "preferredYears": 0, "minQualificationLevel": 0,
+                "technicalSkills": ["Hardware support"], "preferredSkills": [],
+                "requiredCertifications": [], "softSkills": [], "industryExperience": [],
+                "mandatory": [], "niceToHave": [], "preferredQualifications": [],
+                "fieldsOfStudy": [],
+            },
+        }
+        p = parse_cv(
+            "Jane Doe\nEXPERIENCE\n"
+            "Data Entry Clerk – Monitoring & Evaluation\n"
+            "ECEWS – ACE5 Project\n"
+            "June 2022 – June 2025\n"
+            "Entered and validated data in the LAMISPLUS EMR.\n"
+            "EDUCATION\nBSc Computer Science 2018\n",
+            NOW,
+        )
+        r = score({"cv": p, "jobTitle": job["title"], "req": job["requirements"], "weights": W, "thresholds": T, "rules": R})
+        assert r["totalYears"] == pytest.approx(3, abs=0.2)
+        assert r["relevantYears"] == r["totalYears"]
+
 
     def test_can_be_configured_not_to_auto_reject(self):
         r = score(
