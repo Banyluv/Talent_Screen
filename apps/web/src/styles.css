@@ -54,6 +54,8 @@ button, input, select, textarea { font: inherit; color: inherit }
 .main { min-width: 0; display: flex; flex-direction: column }
 .top { display: flex; align-items: center; gap: 12px; padding: 12px 28px; border-bottom: 1px solid var(--line); background: var(--surface); position: sticky; top: 0; z-index: 5; flex-wrap: wrap }
 .top .title { font-family: var(--f-display); font-weight: 600; font-size: 1.05rem; margin-right: auto }
+.top .back { gap: 5px }
+.top .back svg { width: 16px; height: 16px; flex: none }
 .me { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit }
 .avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--green); color: var(--on-accent); display: grid; place-items: center; font: 600 .78rem var(--f-display); flex: none }
 .me .who { line-height: 1.15; font-size: .88rem }

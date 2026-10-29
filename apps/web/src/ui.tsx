@@ -42,6 +42,8 @@ export function PageHead({ eyebrow, title, children }: { eyebrow?: ReactNode; ti
 
 const P = (d: string) => <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d={d} /></svg>;
 export const Icon = {
+  // Arrow left, used by the "Back" control that returns to the dashboard.
+  back: P('M11 5 4 12l7 7v-4h9v-6h-9z'),
   dashboard: P('M3 13h8V3H3zm10 8h8V11h-8zM3 21h8v-6H3zm10-18v6h8V3z'),
   vacancies: P('M10 3h4a2 2 0 0 1 2 2v2h4a1 1 0 0 1 1 1v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a1 1 0 0 1 1-1h4V5a2 2 0 0 1 2-2zm0 4h4V5h-4z'),
   candidates: P('M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm-7 9a7 7 0 0 1 14 0v1H2zm15-9a3 3 0 1 0 0-6v6zm1 2.2A6.5 6.5 0 0 1 22 20v1h-4v-1a8.9 8.9 0 0 0-2.4-6.1c.8-.4 1.6-.7 2.4-.7z'),

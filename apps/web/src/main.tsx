@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import ReactDOM from 'react-dom/client';
-import { BrowserRouter, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
+import { BrowserRouter, Link, Navigate, NavLink, Route, Routes, useLocation } from 'react-router-dom';
 import './styles.css';
 import { post, refreshSession, setSignedOutHandler, setToken } from './api';
 import { Session, SessionCtx, ToastProvider, initials, useCan, useData, useSession } from './lib';
@@ -67,6 +67,12 @@ function Shell({ children }: { children: React.ReactNode }) {
       </aside>
       <div className="main">
         <header className="top">
+          {loc.pathname !== '/' && (
+            <Link to="/" className="btn ghost sm back" title="Back to dashboard" aria-label="Back to dashboard">
+              {Icon.back}
+              <span>Back</span>
+            </Link>
+          )}
           <div className="title">{title}</div>
           <NavLink to="/notifications" className="icon-btn" aria-label={`Notifications${unread ? `, ${unread} unread` : ''}`}>{Icon.bell}{unread > 0 && <span className="dot">{unread}</span>}</NavLink>
           <ThemeToggle />
